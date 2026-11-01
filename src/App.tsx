@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -41,6 +41,7 @@ function App() {
   const [ram, setRam] = useState(() => { try { const value = Number(localStorage.getItem("nova.ram")); return [2,4,6,8,12,16].includes(value) ? value : 4; } catch { return 4; } });
   const [notice, setNotice] = useState("Benvenuto in NOVA CLIENT");
   const [showNotice, setShowNotice] = useState(false);
+  const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     try { localStorage.setItem("nova.mods", JSON.stringify(Object.fromEntries(mods.map(mod => [mod.id, mod.enabled])))); } catch { /* storage may be unavailable */ }
@@ -72,7 +73,8 @@ function App() {
   ), [mods, filter, search]);
 
   const toggleMod = (id: string) => setMods(items => items.map(mod => mod.id === id ? { ...mod, enabled: !mod.enabled } : mod));
-  const toast = (message: string) => { setNotice(message); setShowNotice(true); window.setTimeout(() => setShowNotice(false), 2600); };
+  const toast = (message: string) => { if (toastTimer.current !== undefined) window.clearTimeout(toastTimer.current); setNotice(message); setShowNotice(true); toastTimer.current = window.setTimeout(() => { setShowNotice(false); toastTimer.current = undefined; }, 2600); };
+  useEffect(() => () => { if (toastTimer.current !== undefined) window.clearTimeout(toastTimer.current); }, []);
 
   return <div className="app-shell">
     <aside className="sidebar">
