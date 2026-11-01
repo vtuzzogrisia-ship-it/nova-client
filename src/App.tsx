@@ -110,11 +110,11 @@ function App() {
 function ModLibrary() {
  const [source,setSource]=useState<"modrinth"|"curseforge">("modrinth");
  const [query,setQuery]=useState(""); const [version,setVersion]=useState("1.21.4"); const [loader,setLoader]=useState("fabric");
- const [apiKey,setApiKey]=useState(()=>localStorage.getItem("nova.curseforge.key")||"");
+ const [apiKey,setApiKey]=useState("");
  const [items,setItems]=useState<CatalogItem[]>([]); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
- const [installing,setInstalling]=useState<string|null>(null); const [installed,setInstalled]=useState<string[]>([]); const [modsPath,setModsPath]=useState("");
+ const [installing,setInstalling]=useState<string|null>(null); const [installed,setInstalled]=useState<string[]>([]); const [modsPath,setModsPath]=useState(""); const [success,setSuccess]=useState("");
  useEffect(()=>{void invoke<string>("get_minecraft_mods_path").then(setModsPath).catch(()=>{});void invoke<string[]>("list_installed_mods").then(setInstalled).catch(()=>{});},[]);
- const installProject=async(item:CatalogItem)=>{if(source!=="modrinth")return;setInstalling(String(item.id));setError("");try{const filename=await invoke<string>("install_modrinth_project",{projectId:String(item.id),gameVersion:version,loader});setInstalled(current=>current.includes(filename)?current:[...current,filename]);setError("Installata: "+filename);}catch(e){setError(String(e));}finally{setInstalling(null);}};
+ const installProject=async(item:CatalogItem)=>{if(source!=="modrinth")return;setInstalling(String(item.id));setError("");setSuccess("");try{const filename=await invoke<string>("install_modrinth_project",{projectId:String(item.id),gameVersion:version,loader});setInstalled(current=>current.includes(filename)?current:[...current,filename]);setSuccess("Installata correttamente: "+filename);}catch(e){setError(String(e));}finally{setInstalling(null);}};
  const searchMods=async()=>{
   setLoading(true);setError("");setItems([]);
   try {
@@ -126,7 +126,7 @@ function ModLibrary() {
     setItems((data.hits||[]).map((x:any)=>({id:x.project_id,name:x.title,summary:x.description,icon:x.icon_url,url:"https://modrinth.com/mod/"+(x.slug||x.project_id),downloads:x.downloads,source:"Modrinth"})));
    } else {
     if(!apiKey.trim())throw new Error("Inserisci la API key CurseForge per cercare nel catalogo.");
-    localStorage.setItem("nova.curseforge.key",apiKey.trim());
+    
     const params=new URLSearchParams({gameId:"432",classId:"6",searchFilter:query,gameVersion:version,modLoaderType:loader==="fabric"?"4":loader==="forge"?"1":loader==="neoforge"?"6":"0",pageSize:"24",sortField:"6",sortOrder:"desc"});
     const response=await fetch("https://api.curseforge.com/v1/mods/search?"+params,{headers:{"Accept":"application/json","x-api-key":apiKey.trim()}});
     if(!response.ok)throw new Error(response.status===403?"API key CurseForge non valida o non autorizzata.":"Errore CurseForge: "+response.status);
@@ -138,8 +138,8 @@ function ModLibrary() {
  return <><div className="page-title"><div className="eyebrow">MODS & MODPACKS</div><h1>Libreria <em>mod</em></h1><p>Cerca progetti nei cataloghi ufficiali Modrinth e CurseForge.</p></div>
  <section className="library-panel"><div className="library-sources"><button className={source==="modrinth"?"source-tab active":"source-tab"} onClick={()=>{setSource("modrinth");setItems([]);setError("");}}>Modrinth</button><button className={source==="curseforge"?"source-tab active":"source-tab"} onClick={()=>{setSource("curseforge");setItems([]);setError("");}}>CurseForge</button></div>
  <div className="library-filters"><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void searchMods();}} placeholder="Cerca una mod..."/><select value={version} onChange={e=>setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option></select><button className="primary-btn" disabled={loading} onClick={()=>void searchMods()}>{loading?"Ricerca...":"Cerca"}</button></div>
- {source==="curseforge"&&<div className="api-key-row"><label>CurseForge API key <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="Inserisci la tua API key"/></label><span>Salvata solo su questo dispositivo</span></div>}
- {error&&<div className="library-message error">{error}</div>}{loading&&<div className="library-message">Ricerca nel catalogo…</div>}
+ {source==="curseforge"&&<div className="api-key-row"><label>CurseForge API key <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="Inserisci la tua API key"/></label><span>Usata solo per questa sessione; non viene salvata</span></div>}
+ {error&&<div className="library-message error">{error}</div>}{success&&<div className="library-message success">{success}</div>}{loading&&<div className="library-message">Ricerca nel catalogo…</div>}
  {!items.length&&!loading&&!error&&<div className="library-message">Scrivi il nome di una mod e premi Cerca.</div>}
  {!!items.length&&<div className="catalog-grid">{items.map(item=><article className="catalog-card" key={item.source+"-"+item.id}>{item.icon?<img src={item.icon} alt=""/>:<div className="catalog-placeholder"><Layers3/></div>}<div className="catalog-copy"><strong>{item.name}</strong><p>{item.summary}</p><small>{item.downloads?.toLocaleString("it-IT")||"—"} download · {item.source}</small><div className="catalog-actions"><a href={item.url} target="_blank" rel="noreferrer">Apri progetto <ExternalLink size={12}/></a>{source==="modrinth"&&<button className="text-btn" disabled={installing!==null} onClick={()=>void installProject(item)}>{installing===String(item.id)?"Installazione…":"Installa"}</button>}</div></div></article>)}</div>}
  <div className="mod-panel-note"><ShieldCheck size={14}/> Download Modrinth diretto nella cartella mods di Minecraft. Verifica che il profilo avviato usi la stessa versione e lo stesso loader.</div>{modsPath&&<div className="mod-panel-note">Cartella mods: {modsPath}</div>}{installed.length>0&&<div className="installed-list"><strong>Mod installate rilevate ({installed.length})</strong>{installed.map(file=><div className="installed-row" key={file}><span>{file}</span><button className="text-btn" onClick={()=>void invoke("remove_installed_mod",{filename:file}).then(()=>setInstalled(current=>current.filter(x=>x!==file))).catch(e=>setError(String(e)))}>Rimuovi</button></div>)}</div>}</section></>;
@@ -154,7 +154,7 @@ type NovaProfile = { id: string; name: string; version: string; loader: string; 
 function ProfileManager({defaultVersion,defaultRam}:{defaultVersion:string;defaultRam:number}) {
  const [profiles,setProfiles]=useState<NovaProfile[]>(()=>{try{return JSON.parse(localStorage.getItem("nova.profiles")||"[]");}catch{return [];}});
  const [name,setName]=useState(""); const [profileVersion,setProfileVersion]=useState(defaultVersion); const [loader,setLoader]=useState("fabric"); const [profileRam,setProfileRam]=useState(defaultRam);
- useEffect(()=>{localStorage.setItem("nova.profiles",JSON.stringify(profiles));},[profiles]);
+ useEffect(()=>{try{localStorage.setItem("nova.profiles",JSON.stringify(profiles));}catch{/* storage unavailable */}},[profiles]);
  const add=()=>{const clean=name.trim();if(!clean)return;setProfiles(items=>[...items,{id:Date.now().toString(),name:clean,version:profileVersion,loader,ram:profileRam}]);setName("");};
  return <><div className="page-title"><div className="eyebrow">GAME CONFIGURATIONS</div><h1>I tuoi <em>profili</em></h1><p>Crea configurazioni separate per versione, mod loader e memoria. I profili vengono salvati su questo dispositivo.</p></div>
  <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome del profilo"/><select value={profileVersion} onChange={e=>setProfileVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option><option value="vanilla">Vanilla</option></select><select value={profileRam} onChange={e=>setProfileRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select><button className="primary-btn" onClick={add}>Crea profilo</button></div>
@@ -165,7 +165,7 @@ type NovaServer = { id:string; name:string; address:string };
 function ServerManager() {
  const [servers,setServers]=useState<NovaServer[]>(()=>{try{return JSON.parse(localStorage.getItem("nova.servers")||"[]");}catch{return [];}});
  const [name,setName]=useState(""); const [address,setAddress]=useState("");
- useEffect(()=>{localStorage.setItem("nova.servers",JSON.stringify(servers));},[servers]);
+ useEffect(()=>{try{localStorage.setItem("nova.servers",JSON.stringify(servers));}catch{/* storage unavailable */}},[servers]);
  const add=()=>{const n=name.trim(),a=address.trim();if(!n||!a||!a.includes("." )&&!a.includes(":"))return;setServers(items=>[...items,{id:Date.now().toString(),name:n,address:a}]);setName("");setAddress("");};
  return <><div className="page-title"><div className="eyebrow">MULTIPLAYER</div><h1>Server <em>preferiti</em></h1><p>Salva gli indirizzi dei tuoi server Minecraft e copiali quando ti servono.</p></div>
  <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome server"/><input value={address} onChange={e=>setAddress(e.target.value)} placeholder="play.example.net"/><button className="primary-btn" onClick={add}>Aggiungi server</button></div>
@@ -174,7 +174,7 @@ function ServerManager() {
 }
 function SettingsPage({ram,setRam,version,setVersion}:{ram:number;setRam:(v:number)=>void;version:string;setVersion:(v:string)=>void}) {
  const [confirm,setConfirm]=useState(false);
- const clear=()=>{localStorage.removeItem("nova.mods");localStorage.removeItem("nova.profiles");localStorage.removeItem("nova.servers");localStorage.removeItem("nova.curseforge.key");setConfirm(false);window.location.reload();};
+ const clear=()=>{try{localStorage.removeItem("nova.mods");localStorage.removeItem("nova.profiles");localStorage.removeItem("nova.servers");localStorage.removeItem("nova.version");localStorage.removeItem("nova.ram");}catch{/* storage unavailable */}setConfirm(false);window.location.reload();};
  return <><div className="page-title"><div className="eyebrow">CLIENT PREFERENCES</div><h1>Imposta <em>NOVA</em></h1><p>Preferenze generali del launcher salvate su questo dispositivo.</p></div>
  <section className="library-panel"><div className="library-filters"><label className="settings-field">Versione predefinita<select value={version} onChange={e=>setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select></label><label className="settings-field">RAM predefinita<select value={ram} onChange={e=>setRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select></label></div>
  <div className="mod-panel-note"><ShieldCheck size={14}/> Le preferenze di versione e RAM vengono salvate localmente. Non vengono ancora applicate a un processo Minecraft perché il launcher di gioco non è stato implementato.</div>
