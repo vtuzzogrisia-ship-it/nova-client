@@ -94,7 +94,7 @@ function App() {
         </>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
-        {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram}/>}
+        {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); toast(`Profilo "${profile.name}" applicato alla configurazione rapida.`); setPage("home"); }}/>}
         {page === "servers" && <ServerManager/>}
         {page === "settings" && <SettingsPage ram={ram} setRam={setRam} version={version} setVersion={setVersion}/>}
       </div>
@@ -151,15 +151,15 @@ function ModPanel({mods, filter, setFilter, search, setSearch, toggleMod, compac
 
 
 type NovaProfile = { id: string; name: string; version: string; loader: string; ram: number };
-function ProfileManager({defaultVersion,defaultRam}:{defaultVersion:string;defaultRam:number}) {
+function ProfileManager({defaultVersion,defaultRam,onActivate}:{defaultVersion:string;defaultRam:number;onActivate:(profile:NovaProfile)=>void}) {
  const [profiles,setProfiles]=useState<NovaProfile[]>(()=>{try{return JSON.parse(localStorage.getItem("nova.profiles")||"[]");}catch{return [];}});
  const [name,setName]=useState(""); const [profileVersion,setProfileVersion]=useState(defaultVersion); const [loader,setLoader]=useState("fabric"); const [profileRam,setProfileRam]=useState(defaultRam);
  useEffect(()=>{try{localStorage.setItem("nova.profiles",JSON.stringify(profiles));}catch{/* storage unavailable */}},[profiles]);
  const add=()=>{const clean=name.trim();if(!clean)return;setProfiles(items=>[...items,{id:Date.now().toString(),name:clean,version:profileVersion,loader,ram:profileRam}]);setName("");};
- return <><div className="page-title"><div className="eyebrow">GAME CONFIGURATIONS</div><h1>I tuoi <em>profili</em></h1><p>Crea configurazioni separate per versione, mod loader e memoria. I profili vengono salvati su questo dispositivo.</p></div>
+ return <><div className="page-title"><div className="eyebrow">GAME CONFIGURATIONS</div><h1>I tuoi <em>profili</em></h1><p>Crea configurazioni per versione, mod loader e memoria. Usa un profilo per applicare versione e RAM alla configurazione rapida.</p></div>
  <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome del profilo"/><select value={profileVersion} onChange={e=>setProfileVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option><option value="vanilla">Vanilla</option></select><select value={profileRam} onChange={e=>setProfileRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select><button className="primary-btn" onClick={add}>Crea profilo</button></div>
- {profiles.length===0?<div className="library-message">Nessun profilo creato. Crea il primo usando i campi qui sopra.</div>:<div className="installed-list">{profiles.map(profile=><div className="installed-row" key={profile.id}><span><strong>{profile.name}</strong><small> Minecraft {profile.version} · {profile.loader} · {profile.ram} GB RAM</small></span><button className="text-btn" onClick={()=>setProfiles(items=>items.filter(x=>x.id!==profile.id))}>Elimina</button></div>)}</div>}
- <div className="mod-panel-note"><ShieldCheck size={14}/> Gestione locale dei preset completata. Questi profili non avviano ancora Minecraft e non creano directory di gioco separate.</div></section></>;
+ {profiles.length===0?<div className="library-message">Nessun profilo creato. Crea il primo usando i campi qui sopra.</div>:<div className="installed-list">{profiles.map(profile=><div className="installed-row" key={profile.id}><span><strong>{profile.name}</strong><small> Minecraft {profile.version} · {profile.loader} · {profile.ram} GB RAM</small></span><div className="catalog-actions"><button className="text-btn" onClick={()=>onActivate(profile)}>Usa profilo</button><button className="text-btn" onClick={()=>setProfiles(items=>items.filter(x=>x.id!==profile.id))}>Elimina</button></div></div>)}</div>}
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Usa profilo applica versione e RAM alla configurazione rapida; il loader resta un dato del preset finché non sarà disponibile il launcher Minecraft. I profili non creano ancora directory di gioco separate.</div></section></>;
 }
 type NovaServer = { id:string; name:string; address:string };
 function ServerManager() {
