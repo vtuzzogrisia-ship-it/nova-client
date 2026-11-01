@@ -62,7 +62,7 @@ fs.writeFileSync(path.join(dir, "icon.png"), png);
 const icoHeader = Buffer.alloc(6); icoHeader.writeUInt16LE(0,0); icoHeader.writeUInt16LE(1,2); icoHeader.writeUInt16LE(1,4);
 const entry = Buffer.alloc(16); entry[0]=0; entry[1]=0; entry[2]=0; entry[3]=0; entry.writeUInt16LE(1,4); entry.writeUInt16LE(32,6); entry.writeUInt32LE(png.length,8); entry.writeUInt32LE(22,12);
 fs.writeFileSync(path.join(dir, "icon.ico"), Buffer.concat([icoHeader, entry, png]));
-const icnsChunk = Buffer.concat([Buffer.from("icp6"), Buffer.alloc(4), png]);
+const icnsChunk = Buffer.concat([Buffer.from("ic08"), Buffer.alloc(4), png]);
 icnsChunk.writeUInt32BE(icnsChunk.length, 4);
 const icns = Buffer.concat([Buffer.from("icns"), Buffer.alloc(4), icnsChunk]);
 icns.writeUInt32BE(icns.length, 4);
