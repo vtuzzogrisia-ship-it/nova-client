@@ -4,8 +4,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, Box, ChevronDown, CircleHelp, Cpu,
   Gamepad2, Gauge, Globe2, Layers3, Menu, Monitor,
-  Package, Palette, Play, Search, Settings2, ShieldCheck, Sparkles,
-  Users, X, Zap, Download, ExternalLink
+  Play, Search, Settings2, ShieldCheck, Sparkles,
+  X, Zap, Download, ExternalLink
 } from "lucide-react";
 
 type Mod = { id: string; name: string; category: string; description: string; enabled: boolean; status: string };
@@ -181,8 +181,5 @@ function SettingsPage({ram,setRam,version,setVersion}:{ram:number;setRam:(v:numb
  <div className="installed-list"><strong>Dati locali NOVA</strong><p>Puoi cancellare preferenze mod, profili, server e la chiave CurseForge salvata su questo dispositivo.</p>{confirm?<div className="catalog-actions"><button className="text-btn" onClick={clear}>Conferma cancellazione</button><button className="text-btn" onClick={()=>setConfirm(false)}>Annulla</button></div>:<button className="text-btn" onClick={()=>setConfirm(true)}>Cancella dati locali</button>}</div></section></>;
 }
 
-function Placeholder({icon,title,text}:{icon:React.ReactNode;title:string;text:string}) {
-  return <div className="placeholder"><div className="placeholder-icon">{icon}</div><div className="eyebrow">COMING IN A FUTURE BUILD</div><h1>{title}</h1><p>{text}</p><span className="coming-tag"><Sparkles size={13}/> IN DEVELOPMENT</span></div>;
-}
 
 export default App;
