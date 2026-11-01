@@ -34,7 +34,23 @@ jobs:
       - name: Generate desktop bundle icons
         run: node scripts/generate-icons.mjs
       - run: npm run tauri -- build
-      - uses: actions/upload-artifact@v4
+      - name: Upload Windows installer (EXE)
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOVA-CLIENT-Windows-EXE
+          path: src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+      - name: Upload Windows installer (MSI)
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: NOVA-CLIENT-Windows-MSI
+          path: src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: error
+      - name: Upload macOS and Linux installers
+        if: matrix.os != 'windows'
+        uses: actions/upload-artifact@v4
         with:
           name: nova-client-${{ matrix.os }}
           path: src-tauri/target/release/bundle/**
