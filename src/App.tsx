@@ -127,7 +127,7 @@ function ModLibrary() {
    } else {
     if(!apiKey.trim())throw new Error("Inserisci la API key CurseForge per cercare nel catalogo.");
     
-    const params=new URLSearchParams({gameId:"432",classId:"6",searchFilter:query,gameVersion:version,modLoaderType:loader==="fabric"?"4":loader==="forge"?"1":loader==="neoforge"?"6":"0",pageSize:"24",sortField:"6",sortOrder:"desc"});
+    const params=new URLSearchParams({gameId:"432",classId:"6",searchFilter:query,gameVersion:version,modLoaderType:loader==="fabric"?"4":loader==="forge"?"1":loader==="neoforge"?"6":loader==="quilt"?"5":"0",pageSize:"24",sortField:"6",sortOrder:"desc"});
     const response=await fetch("https://api.curseforge.com/v1/mods/search?"+params,{headers:{"Accept":"application/json","x-api-key":apiKey.trim()}});
     if(!response.ok)throw new Error(response.status===403?"API key CurseForge non valida o non autorizzata.":"Errore CurseForge: "+response.status);
     const data=await response.json();
