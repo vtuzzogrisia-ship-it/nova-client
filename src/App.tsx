@@ -4,10 +4,11 @@ import {
   Activity, Box, ChevronDown, CircleHelp, Cpu,
   Gamepad2, Gauge, Globe2, Layers3, Menu, Monitor,
   Package, Palette, Play, Search, Settings2, ShieldCheck, Sparkles,
-  Users, X, Zap
+  Users, X, Zap, Download, ExternalLink
 } from "lucide-react";
 
 type Mod = { id: string; name: string; category: string; description: string; enabled: boolean; status: string };
+type CatalogItem = { id: string | number; name: string; summary: string; icon?: string; url: string; downloads?: number; source: string };
 const initialMods: Mod[] = [
   { id: "sodium", name: "Sodium", category: "Performance", description: "Rendering engine ottimizzato per aumentare gli FPS.", enabled: true, status: "Pronto per l'integrazione" },
   { id: "lithium", name: "Lithium", category: "Performance", description: "Ottimizza la logica interna del gioco e il tick.", enabled: true, status: "Pronto per l'integrazione" },
@@ -23,6 +24,7 @@ const initialMods: Mod[] = [
 const nav = [
   { id: "home", label: "Dashboard", icon: Gauge },
   { id: "mods", label: "Mod Manager", icon: Layers3 },
+  { id: "library", label: "Libreria mod", icon: Download },
   { id: "profiles", label: "Profili", icon: Box },
   { id: "servers", label: "Server", icon: Globe2 },
   { id: "settings", label: "Impostazioni", icon: Settings2 }
@@ -89,6 +91,7 @@ function App() {
           <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
+        {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <Placeholder icon={<Package/>} title="Profili" text="I profili Minecraft con versioni, loader e directory separate arriveranno nel prossimo step."/>}
         {page === "servers" && <Placeholder icon={<Users/>} title="Server" text="Gestione server e preferiti: in sviluppo."/>}
@@ -100,6 +103,42 @@ function App() {
     <AnimatePresence>{menuOpen && <motion.div className="overlay-backdrop" initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} onMouseDown={e => { if (e.target === e.currentTarget) setMenuOpen(false); }}><motion.section className="mod-overlay" initial={{opacity:0, scale:.96, y:12}} animate={{opacity:1, scale:1, y:0}} exit={{opacity:0, scale:.97, y:8}} transition={{duration:.16}}><div className="overlay-head"><div className="brand mini"><div className="brand-mark"><Sparkles size={17}/></div><div><strong>NOVA</strong><span>MOD MENU</span></div></div><div className="overlay-head-right"><kbd>RIGHT SHIFT</kbd><button className="icon-btn" onClick={() => setMenuOpen(false)}><X size={18}/></button></div></div><div className="overlay-body"><div className="overlay-intro"><div><div className="eyebrow">YOUR CLIENT, YOUR WAY</div><h2>Mod <em>Menu</em></h2><p>Attiva o disattiva le funzionalità disponibili.</p></div><div className="overlay-badge"><Activity size={15}/> {mods.filter(m=>m.enabled).length} ACTIVE</div></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod} compact/></div><div className="overlay-foot"><span><i/> NOVA CLIENT PREVIEW</span><span>ESC / RIGHT SHIFT PER CHIUDERE</span></div></motion.section></motion.div>}</AnimatePresence>
     <AnimatePresence>{showNotice && <motion.div className="toast" initial={{opacity:0,y:12}} animate={{opacity:1,y:0}} exit={{opacity:0,y:8}}><CircleHelp size={17}/>{notice}</motion.div>}</AnimatePresence>
   </div>;
+}
+
+
+function ModLibrary() {
+ const [source,setSource]=useState<"modrinth"|"curseforge">("modrinth");
+ const [query,setQuery]=useState(""); const [version,setVersion]=useState("1.21.4"); const [loader,setLoader]=useState("fabric");
+ const [apiKey,setApiKey]=useState(()=>localStorage.getItem("nova.curseforge.key")||"");
+ const [items,setItems]=useState<CatalogItem[]>([]); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
+ const searchMods=async()=>{
+  setLoading(true);setError("");setItems([]);
+  try {
+   if(source==="modrinth"){
+    const facets=JSON.stringify([["project_type:mod"],["versions:"+version],["categories:"+loader]]);
+    const url="https://api.modrinth.com/v2/search?query="+encodeURIComponent(query)+"&facets="+encodeURIComponent(facets)+"&limit=24&index=relevance";
+    const response=await fetch(url);if(!response.ok)throw new Error("Errore Modrinth: "+response.status);
+    const data=await response.json();
+    setItems((data.hits||[]).map((x:any)=>({id:x.project_id,name:x.title,summary:x.description,icon:x.icon_url,url:"https://modrinth.com/mod/"+(x.slug||x.project_id),downloads:x.downloads,source:"Modrinth"})));
+   } else {
+    if(!apiKey.trim())throw new Error("Inserisci la API key CurseForge per cercare nel catalogo.");
+    localStorage.setItem("nova.curseforge.key",apiKey.trim());
+    const params=new URLSearchParams({gameId:"432",classId:"6",searchFilter:query,gameVersion:version,modLoaderType:loader==="fabric"?"4":loader==="forge"?"1":loader==="neoforge"?"6":"0",pageSize:"24",sortField:"6",sortOrder:"desc"});
+    const response=await fetch("https://api.curseforge.com/v1/mods/search?"+params,{headers:{"Accept":"application/json","x-api-key":apiKey.trim()}});
+    if(!response.ok)throw new Error(response.status===403?"API key CurseForge non valida o non autorizzata.":"Errore CurseForge: "+response.status);
+    const data=await response.json();
+    setItems((data.data||[]).map((x:any)=>({id:x.id,name:x.name,summary:x.summary,icon:x.logo?.url,url:x.links?.websiteUrl||"https://www.curseforge.com/minecraft/mc-mods/"+x.slug,downloads:x.downloadCount,source:"CurseForge"})));
+   }
+  }catch(e){setError(e instanceof Error?e.message:"Errore durante la ricerca.");}finally{setLoading(false);}
+ };
+ return <><div className="page-title"><div className="eyebrow">MODS & MODPACKS</div><h1>Libreria <em>mod</em></h1><p>Cerca progetti nei cataloghi ufficiali Modrinth e CurseForge.</p></div>
+ <section className="library-panel"><div className="library-sources"><button className={source==="modrinth"?"source-tab active":"source-tab"} onClick={()=>{setSource("modrinth");setItems([]);setError("");}}>Modrinth</button><button className={source==="curseforge"?"source-tab active":"source-tab"} onClick={()=>{setSource("curseforge");setItems([]);setError("");}}>CurseForge</button></div>
+ <div className="library-filters"><input value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void searchMods();}} placeholder="Cerca una mod..."/><select value={version} onChange={e=>setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option></select><button className="primary-btn" disabled={loading} onClick={()=>void searchMods()}>{loading?"Ricerca...":"Cerca"}</button></div>
+ {source==="curseforge"&&<div className="api-key-row"><label>CurseForge API key <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="Inserisci la tua API key"/></label><span>Salvata solo su questo dispositivo</span></div>}
+ {error&&<div className="library-message error">{error}</div>}{loading&&<div className="library-message">Ricerca nel catalogo…</div>}
+ {!items.length&&!loading&&!error&&<div className="library-message">Scrivi il nome di una mod e premi Cerca.</div>}
+ {!!items.length&&<div className="catalog-grid">{items.map(item=><article className="catalog-card" key={item.source+"-"+item.id}>{item.icon?<img src={item.icon} alt=""/>:<div className="catalog-placeholder"><Layers3/></div>}<div className="catalog-copy"><strong>{item.name}</strong><p>{item.summary}</p><small>{item.downloads?.toLocaleString("it-IT")||"—"} download · {item.source}</small><a href={item.url} target="_blank" rel="noreferrer">Apri progetto <ExternalLink size={12}/></a></div></article>)}</div>}
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Ricerca live attiva. Installazione automatica, dipendenze e aggiornamenti richiedono ancora il gestore delle istanze Minecraft.</div></section></>;
 }
 
 function ModPanel({mods, filter, setFilter, search, setSearch, toggleMod, compact=false}: {mods:Mod[];filter:string;setFilter:(v:string)=>void;search:string;setSearch:(v:string)=>void;toggleMod:(id:string)=>void;compact?:boolean}) {
