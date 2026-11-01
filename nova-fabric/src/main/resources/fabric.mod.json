@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "nova",
+  "version": "${version}",
+  "name": "NOVA CLIENT",
+  "description": "NOVA in-game client menu and configurable HUD modules.",
+  "authors": ["NOVA CLIENT"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.nova.client.NovaClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
