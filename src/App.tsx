@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  Activity, ArrowDownToLine, Box, Check, ChevronDown, CircleHelp, Cpu,
-  Gamepad2, Gauge, Globe2, Layers3, Menu, MessageCircle, Monitor,
-  Package, Palette, Play, Plus, Search, Settings2, ShieldCheck, Sparkles,
+  Activity, Box, ChevronDown, CircleHelp, Cpu,
+  Gamepad2, Gauge, Globe2, Layers3, Menu, Monitor,
+  Package, Palette, Play, Search, Settings2, ShieldCheck, Sparkles,
   Users, X, Zap
 } from "lucide-react";
 
