@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, Box, ChevronDown, CircleHelp, Cpu,
@@ -111,6 +112,9 @@ function ModLibrary() {
  const [query,setQuery]=useState(""); const [version,setVersion]=useState("1.21.4"); const [loader,setLoader]=useState("fabric");
  const [apiKey,setApiKey]=useState(()=>localStorage.getItem("nova.curseforge.key")||"");
  const [items,setItems]=useState<CatalogItem[]>([]); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
+ const [installing,setInstalling]=useState<string|null>(null); const [installed,setInstalled]=useState<string[]>([]); const [modsPath,setModsPath]=useState("");
+ useEffect(()=>{void invoke<string>("get_minecraft_mods_path").then(setModsPath).catch(()=>{});void invoke<string[]>("list_installed_mods").then(setInstalled).catch(()=>{});},[]);
+ const installProject=async(item:CatalogItem)=>{if(source!=="modrinth")return;setInstalling(String(item.id));setError("");try{const filename=await invoke<string>("install_modrinth_project",{projectId:String(item.id),gameVersion:version,loader});setInstalled(current=>current.includes(filename)?current:[...current,filename]);setError("Installata: "+filename);}catch(e){setError(String(e));}finally{setInstalling(null);}};
  const searchMods=async()=>{
   setLoading(true);setError("");setItems([]);
   try {
@@ -137,8 +141,8 @@ function ModLibrary() {
  {source==="curseforge"&&<div className="api-key-row"><label>CurseForge API key <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} placeholder="Inserisci la tua API key"/></label><span>Salvata solo su questo dispositivo</span></div>}
  {error&&<div className="library-message error">{error}</div>}{loading&&<div className="library-message">Ricerca nel catalogo…</div>}
  {!items.length&&!loading&&!error&&<div className="library-message">Scrivi il nome di una mod e premi Cerca.</div>}
- {!!items.length&&<div className="catalog-grid">{items.map(item=><article className="catalog-card" key={item.source+"-"+item.id}>{item.icon?<img src={item.icon} alt=""/>:<div className="catalog-placeholder"><Layers3/></div>}<div className="catalog-copy"><strong>{item.name}</strong><p>{item.summary}</p><small>{item.downloads?.toLocaleString("it-IT")||"—"} download · {item.source}</small><a href={item.url} target="_blank" rel="noreferrer">Apri progetto <ExternalLink size={12}/></a></div></article>)}</div>}
- <div className="mod-panel-note"><ShieldCheck size={14}/> Ricerca live attiva. Installazione automatica, dipendenze e aggiornamenti richiedono ancora il gestore delle istanze Minecraft.</div></section></>;
+ {!!items.length&&<div className="catalog-grid">{items.map(item=><article className="catalog-card" key={item.source+"-"+item.id}>{item.icon?<img src={item.icon} alt=""/>:<div className="catalog-placeholder"><Layers3/></div>}<div className="catalog-copy"><strong>{item.name}</strong><p>{item.summary}</p><small>{item.downloads?.toLocaleString("it-IT")||"—"} download · {item.source}</small><div className="catalog-actions"><a href={item.url} target="_blank" rel="noreferrer">Apri progetto <ExternalLink size={12}/></a>{source==="modrinth"&&<button className="text-btn" disabled={installing!==null} onClick={()=>void installProject(item)}>{installing===String(item.id)?"Installazione…":"Installa"}</button>}</div></div></article>)}</div>}
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Download Modrinth diretto nella cartella mods di Minecraft. Verifica che il profilo avviato usi la stessa versione e lo stesso loader.</div>{modsPath&&<div className="mod-panel-note">Cartella mods: {modsPath}</div>}{installed.length>0&&<div className="installed-list"><strong>Mod installate rilevate ({installed.length})</strong>{installed.map(file=><div className="installed-row" key={file}><span>{file}</span><button className="text-btn" onClick={()=>void invoke("remove_installed_mod",{filename:file}).then(()=>setInstalled(current=>current.filter(x=>x!==file))).catch(e=>setError(String(e)))}>Rimuovi</button></div>)}</div>}</section></>;
 }
 
 function ModPanel({mods, filter, setFilter, search, setSearch, toggleMod, compact=false}: {mods:Mod[];filter:string;setFilter:(v:string)=>void;search:string;setSearch:(v:string)=>void;toggleMod:(id:string)=>void;compact?:boolean}) {
