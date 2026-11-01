@@ -30,14 +30,26 @@ const nav = [
 
 function App() {
   const [page, setPage] = useState("home");
-  const [mods, setMods] = useState(initialMods);
+  const [mods, setMods] = useState<Mod[]>(() => { try { const saved = localStorage.getItem("nova.mods"); const values = saved ? JSON.parse(saved) as Record<string, boolean> : {}; return initialMods.map(mod => ({ ...mod, enabled: values[mod.id] ?? mod.enabled })); } catch { return initialMods; } });
   const [menuOpen, setMenuOpen] = useState(false);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
-  const [version, setVersion] = useState("1.21.4");
-  const [ram, setRam] = useState(4);
+  const [version, setVersion] = useState(() => { try { return localStorage.getItem("nova.version") || "1.21.4"; } catch { return "1.21.4"; } });
+  const [ram, setRam] = useState(() => { try { const value = Number(localStorage.getItem("nova.ram")); return [2,4,6,8,12,16].includes(value) ? value : 4; } catch { return 4; } });
   const [notice, setNotice] = useState("Benvenuto in NOVA CLIENT");
   const [showNotice, setShowNotice] = useState(false);
+
+  useEffect(() => {
+    try { localStorage.setItem("nova.mods", JSON.stringify(Object.fromEntries(mods.map(mod => [mod.id, mod.enabled])))); } catch { /* storage may be unavailable */ }
+  }, [mods]);
+
+  useEffect(() => {
+    try { localStorage.setItem("nova.version", version); } catch { /* storage may be unavailable */ }
+  }, [version]);
+
+  useEffect(() => {
+    try { localStorage.setItem("nova.ram", String(ram)); } catch { /* storage may be unavailable */ }
+  }, [ram]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -74,10 +86,10 @@ function App() {
         {page === "home" && <><section className="welcome-row"><div><div className="eyebrow"><Sparkles size={13}/> THE NEXT GENERATION CLIENT</div><h1>Il tuo Minecraft.<br/><em>Le tue regole.</em></h1><p className="muted">Tutto ciò che ti serve per personalizzare la tua esperienza.</p></div><div className="hero-orb"><div className="orb-core"><Zap size={38}/></div><div className="orb-ring ring-one"/><div className="orb-ring ring-two"/></div></section>
           <section className="launch-card"><div className="launch-info"><div className="eyebrow">QUICK LAUNCH</div><h2>Pronto a giocare?</h2><p>Configura il profilo e prepara la tua prossima sessione.</p><div className="launch-controls"><label className="select-wrap"><span>VERSIONE</span><select value={version} onChange={e => setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><ChevronDown size={14}/></label><label className="select-wrap"><span>RAM ALLOCATA</span><select value={ram} onChange={e => setRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n => <option key={n} value={n}>{n} GB</option>)}</select><ChevronDown size={14}/></label></div><button className="primary-btn" onClick={() => toast("Il launcher Minecraft non è ancora collegato: installazione in sviluppo.")}><Play size={16} fill="currentColor"/> Avvia NOVA <span>→</span></button></div><div className="launch-art"><div className="cube"><div className="cube-top"/><div className="cube-front"/><div className="cube-side"/></div><div className="art-caption">MINECRAFT JAVA <span>PROFILE · {version}</span></div></div></section>
           <div className="section-heading"><div><div className="eyebrow">YOUR SETUP</div><h2>Il tuo spazio di gioco</h2></div><button className="text-btn" onClick={() => setPage("mods")}>Gestisci mod <span>→</span></button></div>
-          <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Configurazione locale demo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Valore selezionato</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
+          <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
-        {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci la configurazione delle mod del tuo profilo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
+        {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <Placeholder icon={<Package/>} title="Profili" text="I profili Minecraft con versioni, loader e directory separate arriveranno nel prossimo step."/>}
         {page === "servers" && <Placeholder icon={<Users/>} title="Server" text="Gestione server e preferiti: in sviluppo."/>}
         {page === "settings" && <Placeholder icon={<Palette/>} title="Impostazioni" text="Temi, account e preferenze globali saranno configurabili qui."/>}
@@ -91,7 +103,7 @@ function App() {
 }
 
 function ModPanel({mods, filter, setFilter, search, setSearch, toggleMod, compact=false}: {mods:Mod[];filter:string;setFilter:(v:string)=>void;search:string;setSearch:(v:string)=>void;toggleMod:(id:string)=>void;compact?:boolean}) {
-  return <div className={compact ? "mod-panel compact" : "mod-panel"}><div className="mod-toolbar"><div className="filter-tabs">{["All","Performance","HUD","Gameplay"].map(f=><button key={f} className={filter===f?"filter active":"filter"} onClick={()=>setFilter(f)}>{f}</button>)}</div><label className="search-box"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cerca una mod..."/></label></div><div className="mod-list">{mods.map(mod=><div className="mod-row" key={mod.id}><div className="mod-symbol">{mod.category==="Performance"?<Zap size={17}/>:mod.category==="HUD"?<Monitor size={17}/>:<Gamepad2 size={17}/>}</div><div className="mod-copy"><strong>{mod.name}</strong><p>{mod.description}</p></div><div className="mod-state"><span className={mod.enabled?"enabled-label":"disabled-label"}>{mod.enabled?"ON":"OFF"}</span><button className={mod.enabled?"toggle on":"toggle"} aria-label={mod.enabled?"Disattiva "+mod.name:"Attiva "+mod.name} aria-pressed={mod.enabled} onClick={()=>toggleMod(mod.id)}><span/></button></div></div>)}{mods.length===0&&<div className="empty-state">Nessuna mod trovata.</div>}</div><div className="mod-panel-note"><ShieldCheck size={14}/> Le opzioni qui modificano la demo UI. L'installazione e l'esecuzione delle mod richiedono il backend Minecraft, ancora in sviluppo.</div></div>;
+  return <div className={compact ? "mod-panel compact" : "mod-panel"}><div className="mod-toolbar"><div className="filter-tabs">{["All","Performance","HUD","Gameplay"].map(f=><button key={f} className={filter===f?"filter active":"filter"} onClick={()=>setFilter(f)}>{f}</button>)}</div><label className="search-box"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cerca una mod..."/></label></div><div className="mod-list">{mods.map(mod=><div className="mod-row" key={mod.id}><div className="mod-symbol">{mod.category==="Performance"?<Zap size={17}/>:mod.category==="HUD"?<Monitor size={17}/>:<Gamepad2 size={17}/>}</div><div className="mod-copy"><strong>{mod.name}</strong><p>{mod.description}</p></div><div className="mod-state"><span className={mod.enabled?"enabled-label":"disabled-label"}>{mod.enabled?"ON":"OFF"}</span><button className={mod.enabled?"toggle on":"toggle"} aria-label={mod.enabled?"Disattiva "+mod.name:"Attiva "+mod.name} aria-pressed={mod.enabled} onClick={()=>toggleMod(mod.id)}><span/></button></div></div>)}{mods.length===0&&<div className="empty-state">Nessuna mod trovata.</div>}</div><div className="mod-panel-note"><ShieldCheck size={14}/> Le preferenze ON/OFF vengono salvate su questo dispositivo. Non installano ancora le mod nel gioco: il collegamento al launcher Minecraft è in sviluppo.</div></div>;
 }
 
 function Placeholder({icon,title,text}:{icon:React.ReactNode;title:string;text:string}) {
