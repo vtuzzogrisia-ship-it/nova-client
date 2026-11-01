@@ -3,11 +3,11 @@ name: Build NOVA CLIENT
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "v*"
+    branches: [main]
+    tags: ["v*"]
 
 jobs:
-  build:
+  desktop:
     permissions:
       contents: write
     strategy:
@@ -15,35 +15,51 @@ jobs:
       matrix:
         include:
           - platform: windows-latest
-            args: ""
+            os: windows
           - platform: macos-latest
-            args: ""
+            os: macos
           - platform: ubuntu-22.04
-            args: ""
+            os: linux
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev patchelf
-      - name: Install frontend dependencies
-        run: npm install
-      - name: Build desktop app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev patchelf
+      - run: npm install
+      - run: npm run tauri -- build
+      - uses: actions/upload-artifact@v4
         with:
-          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: "NOVA CLIENT ${{ github.ref_name }}"
-          releaseDraft: true
+          name: nova-client-${{ matrix.os }}
+          path: src-tauri/target/release/bundle/**
+          if-no-files-found: error
+      - name: Publish draft release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
           prerelease: true
-          args: ${{ matrix.args }}
+          files: src-tauri/target/release/bundle/**/*
+
+  fabric-mod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build Fabric mod
+        working-directory: nova-fabric
+        run: gradle build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nova-client-fabric-1.21.4
+          path: nova-fabric/build/libs/*-all.jar
+          if-no-files-found: error
