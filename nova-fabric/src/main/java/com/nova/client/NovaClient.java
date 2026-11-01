@@ -20,7 +20,7 @@ public final class NovaClient implements ClientModInitializer {
             "key.nova.open_menu",
             InputUtil.Type.KEYSYM,
             GLFW.GLFW_KEY_RIGHT_SHIFT,
-            KeyBinding.Category.MISC
+            "key.categories.misc"
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
