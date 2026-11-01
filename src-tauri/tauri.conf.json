@@ -26,6 +26,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi", "dmg", "app", "deb", "appimage"],
+    "icon": [],
     "category": "Game",
     "shortDescription": "A new home for Minecraft Java"
   }
