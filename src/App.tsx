@@ -94,9 +94,9 @@ function App() {
         </>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
-        {page === "profiles" && <Placeholder icon={<Package/>} title="Profili" text="I profili Minecraft con versioni, loader e directory separate arriveranno nel prossimo step."/>}
-        {page === "servers" && <Placeholder icon={<Users/>} title="Server" text="Gestione server e preferiti: in sviluppo."/>}
-        {page === "settings" && <Placeholder icon={<Palette/>} title="Impostazioni" text="Temi, account e preferenze globali saranno configurabili qui."/>}
+        {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram}/>}
+        {page === "servers" && <ServerManager/>}
+        {page === "settings" && <SettingsPage ram={ram} setRam={setRam} version={version} setVersion={setVersion}/>}
       </div>
       <footer className="footer"><span>© 2026 NOVA CLIENT</span><span><i/> ALL SYSTEMS IN PREVIEW</span></footer>
     </main>
@@ -147,6 +147,38 @@ function ModLibrary() {
 
 function ModPanel({mods, filter, setFilter, search, setSearch, toggleMod, compact=false}: {mods:Mod[];filter:string;setFilter:(v:string)=>void;search:string;setSearch:(v:string)=>void;toggleMod:(id:string)=>void;compact?:boolean}) {
   return <div className={compact ? "mod-panel compact" : "mod-panel"}><div className="mod-toolbar"><div className="filter-tabs">{["All","Performance","HUD","Gameplay"].map(f=><button key={f} className={filter===f?"filter active":"filter"} onClick={()=>setFilter(f)}>{f}</button>)}</div><label className="search-box"><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cerca una mod..."/></label></div><div className="mod-list">{mods.map(mod=><div className="mod-row" key={mod.id}><div className="mod-symbol">{mod.category==="Performance"?<Zap size={17}/>:mod.category==="HUD"?<Monitor size={17}/>:<Gamepad2 size={17}/>}</div><div className="mod-copy"><strong>{mod.name}</strong><p>{mod.description}</p></div><div className="mod-state"><span className={mod.enabled?"enabled-label":"disabled-label"}>{mod.enabled?"ON":"OFF"}</span><button className={mod.enabled?"toggle on":"toggle"} aria-label={mod.enabled?"Disattiva "+mod.name:"Attiva "+mod.name} aria-pressed={mod.enabled} onClick={()=>toggleMod(mod.id)}><span/></button></div></div>)}{mods.length===0&&<div className="empty-state">Nessuna mod trovata.</div>}</div><div className="mod-panel-note"><ShieldCheck size={14}/> Le preferenze ON/OFF vengono salvate su questo dispositivo. Non installano ancora le mod nel gioco: il collegamento al launcher Minecraft è in sviluppo.</div></div>;
+}
+
+
+type NovaProfile = { id: string; name: string; version: string; loader: string; ram: number };
+function ProfileManager({defaultVersion,defaultRam}:{defaultVersion:string;defaultRam:number}) {
+ const [profiles,setProfiles]=useState<NovaProfile[]>(()=>{try{return JSON.parse(localStorage.getItem("nova.profiles")||"[]");}catch{return [];}});
+ const [name,setName]=useState(""); const [profileVersion,setProfileVersion]=useState(defaultVersion); const [loader,setLoader]=useState("fabric"); const [profileRam,setProfileRam]=useState(defaultRam);
+ useEffect(()=>{localStorage.setItem("nova.profiles",JSON.stringify(profiles));},[profiles]);
+ const add=()=>{const clean=name.trim();if(!clean)return;setProfiles(items=>[...items,{id:Date.now().toString(),name:clean,version:profileVersion,loader,ram:profileRam}]);setName("");};
+ return <><div className="page-title"><div className="eyebrow">GAME CONFIGURATIONS</div><h1>I tuoi <em>profili</em></h1><p>Crea configurazioni separate per versione, mod loader e memoria. I profili vengono salvati su questo dispositivo.</p></div>
+ <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome del profilo"/><select value={profileVersion} onChange={e=>setProfileVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option><option value="vanilla">Vanilla</option></select><select value={profileRam} onChange={e=>setProfileRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select><button className="primary-btn" onClick={add}>Crea profilo</button></div>
+ {profiles.length===0?<div className="library-message">Nessun profilo creato. Crea il primo usando i campi qui sopra.</div>:<div className="installed-list">{profiles.map(profile=><div className="installed-row" key={profile.id}><span><strong>{profile.name}</strong><small> Minecraft {profile.version} · {profile.loader} · {profile.ram} GB RAM</small></span><button className="text-btn" onClick={()=>setProfiles(items=>items.filter(x=>x.id!==profile.id))}>Elimina</button></div>)}</div>}
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Gestione locale dei preset completata. Questi profili non avviano ancora Minecraft e non creano directory di gioco separate.</div></section></>;
+}
+type NovaServer = { id:string; name:string; address:string };
+function ServerManager() {
+ const [servers,setServers]=useState<NovaServer[]>(()=>{try{return JSON.parse(localStorage.getItem("nova.servers")||"[]");}catch{return [];}});
+ const [name,setName]=useState(""); const [address,setAddress]=useState("");
+ useEffect(()=>{localStorage.setItem("nova.servers",JSON.stringify(servers));},[servers]);
+ const add=()=>{const n=name.trim(),a=address.trim();if(!n||!a||!a.includes("." )&&!a.includes(":"))return;setServers(items=>[...items,{id:Date.now().toString(),name:n,address:a}]);setName("");setAddress("");};
+ return <><div className="page-title"><div className="eyebrow">MULTIPLAYER</div><h1>Server <em>preferiti</em></h1><p>Salva gli indirizzi dei tuoi server Minecraft e copiali quando ti servono.</p></div>
+ <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome server"/><input value={address} onChange={e=>setAddress(e.target.value)} placeholder="play.example.net"/><button className="primary-btn" onClick={add}>Aggiungi server</button></div>
+ {servers.length===0?<div className="library-message">Nessun server salvato.</div>:<div className="installed-list">{servers.map(server=><div className="installed-row" key={server.id}><span><strong>{server.name}</strong><small>{server.address}</small></span><div className="catalog-actions"><button className="text-btn" onClick={()=>void navigator.clipboard?.writeText(server.address)}>Copia IP</button><button className="text-btn" onClick={()=>setServers(items=>items.filter(x=>x.id!==server.id))}>Rimuovi</button></div></div>)}</div>}
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Rubrica server locale. Stato online, ping e connessione diretta al gioco non sono ancora collegati.</div></section></>;
+}
+function SettingsPage({ram,setRam,version,setVersion}:{ram:number;setRam:(v:number)=>void;version:string;setVersion:(v:string)=>void}) {
+ const [confirm,setConfirm]=useState(false);
+ const clear=()=>{localStorage.removeItem("nova.mods");localStorage.removeItem("nova.profiles");localStorage.removeItem("nova.servers");localStorage.removeItem("nova.curseforge.key");setConfirm(false);window.location.reload();};
+ return <><div className="page-title"><div className="eyebrow">CLIENT PREFERENCES</div><h1>Imposta <em>NOVA</em></h1><p>Preferenze generali del launcher salvate su questo dispositivo.</p></div>
+ <section className="library-panel"><div className="library-filters"><label className="settings-field">Versione predefinita<select value={version} onChange={e=>setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select></label><label className="settings-field">RAM predefinita<select value={ram} onChange={e=>setRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select></label></div>
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Le preferenze di versione e RAM vengono salvate localmente. Non vengono ancora applicate a un processo Minecraft perché il launcher di gioco non è stato implementato.</div>
+ <div className="installed-list"><strong>Dati locali NOVA</strong><p>Puoi cancellare preferenze mod, profili, server e la chiave CurseForge salvata su questo dispositivo.</p>{confirm?<div className="catalog-actions"><button className="text-btn" onClick={clear}>Conferma cancellazione</button><button className="text-btn" onClick={()=>setConfirm(false)}>Annulla</button></div>:<button className="text-btn" onClick={()=>setConfirm(true)}>Cancella dati locali</button>}</div></section></>;
 }
 
 function Placeholder({icon,title,text}:{icon:React.ReactNode;title:string;text:string}) {
