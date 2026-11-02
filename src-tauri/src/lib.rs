@@ -692,6 +692,85 @@ fn install_java_runtime(major: u32) -> Result<String, String> {
 
 
 
+
+fn copy_instance_tree(source: &std::path::Path, destination: &std::path::Path) -> Result<(), String> {
+    fs::create_dir_all(destination).map_err(|e| e.to_string())?;
+    for entry in fs::read_dir(source).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let source_path = entry.path();
+        let destination_path = destination.join(entry.file_name());
+        let kind = entry.file_type().map_err(|e| e.to_string())?;
+        if kind.is_dir() {
+            copy_instance_tree(&source_path, &destination_path)?;
+        } else if kind.is_file() {
+            if let Some(parent) = destination_path.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+            fs::copy(&source_path, &destination_path).map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn backup_game_instance(instance_path: String) -> Result<String, String> {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    let source = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
+    if !source.starts_with(&instances_root) || !source.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non valida per il backup".into());
+    }
+    let name = source.file_name().and_then(|v| v.to_str()).ok_or("Nome istanza non valido")?;
+    let backups_root = minecraft_dir()?.join("nova-backups");
+    fs::create_dir_all(&backups_root).map_err(|e| e.to_string())?;
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
+    let destination = backups_root.join(format!("{name}-{timestamp}"));
+    copy_instance_tree(&source, &destination)?;
+    Ok(destination.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn list_instance_backups(instance_path: String) -> Result<Vec<String>, String> {
+    let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    let instance = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
+    if !instance.starts_with(&instances_root) || !instance.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non valida".into());
+    }
+    let name = instance.file_name().and_then(|v| v.to_str()).ok_or("Nome istanza non valido")?;
+    let backups_root = minecraft_dir()?.join("nova-backups");
+    if !backups_root.exists() { return Ok(Vec::new()); }
+    let mut result = Vec::new();
+    for entry in fs::read_dir(backups_root).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        if path.is_dir() && path.file_name().and_then(|v| v.to_str()).map(|v| v.starts_with(&format!("{name}-"))).unwrap_or(false)
+            && path.join("nova-instance.json").is_file() {
+            result.push(path.to_string_lossy().to_string());
+        }
+    }
+    result.sort();
+    result.reverse();
+    Ok(result)
+}
+
+#[tauri::command]
+fn restore_game_instance_backup(instance_path: String, backup_path: String) -> Result<(), String> {
+    let root = minecraft_dir()?;
+    let instances_root = root.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    let backups_root = root.join("nova-backups").canonicalize().map_err(|_| "Cartella backup NOVA non trovata")?;
+    let destination = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
+    let source = PathBuf::from(backup_path).canonicalize().map_err(|e| e.to_string())?;
+    if !destination.starts_with(&instances_root) || !destination.join("nova-instance.json").is_file()
+        || !source.starts_with(&backups_root) || !source.join("nova-instance.json").is_file() {
+        return Err("Percorso istanza o backup non valido".into());
+    }
+    for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
+        let target = destination.join(folder);
+        if target.exists() { fs::remove_dir_all(target).map_err(|e| e.to_string())?; }
+    }
+    let options = destination.join("options.txt");
+    if options.exists() { fs::remove_file(options).map_err(|e| e.to_string())?; }
+    copy_instance_tree(&source, &destination)?;
+    Ok(())
+}
+
 #[tauri::command]
 fn get_instance_profile_id(instance_path: String) -> Result<Option<String>, String> {
     let root = PathBuf::from(instance_path);
@@ -745,7 +824,10 @@ pub fn run() {
             launch_offline_profile,
             install_java_runtime,
             list_game_instances,
-            get_instance_profile_id
+            get_instance_profile_id,
+            backup_game_instance,
+            list_instance_backups,
+            restore_game_instance_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
