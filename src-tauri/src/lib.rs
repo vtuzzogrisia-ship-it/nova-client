@@ -353,7 +353,7 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
         install_modrinth_recursive(&client, "YL57xq9U", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
             .map_err(|e| format!("Installazione Iris/Sodium per la gestione shader non riuscita: {e}"))?;
     }
-    if loader == "fabric" {
+    if loader == "fabric" && version == "1.21.4" {
         use base64::Engine;
         let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
