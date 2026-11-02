@@ -730,11 +730,14 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
             }
         }
         PathBuf::from(explicit)
+    } else if let Some(existing) = runtimes.into_iter()
+        .find(|runtime| runtime.available && (required_java.is_none() || runtime.major == required_java))
+        .and_then(|runtime| runtime.executable.map(PathBuf::from)) {
+        existing
     } else {
-        runtimes.into_iter()
-            .find(|runtime| runtime.available && (required_java.is_none() || runtime.major == required_java))
-            .and_then(|runtime| runtime.executable.map(PathBuf::from))
-            .ok_or_else(|| format!("Java {} non trovato. Installa il runtime richiesto dalla sezione Launcher.", required_java.map(|v| v.to_string()).unwrap_or_else(|| "compatibile".into())))?
+        let major = required_java.unwrap_or(21);
+        PathBuf::from(install_java_runtime_blocking(major)
+            .map_err(|e| format!("Java {major} non trovato; download automatico non riuscito: {e}"))?)
     };
     let options = LaunchOptions {
         account: Account::offline(username),
