@@ -771,6 +771,22 @@ fn restore_game_instance_backup(instance_path: String, backup_path: String) -> R
     Ok(())
 }
 
+
+#[tauri::command]
+fn read_instance_log(instance_path: String) -> Result<String, String> {
+    let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    let instance = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
+    if !instance.starts_with(&instances_root) || !instance.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non valida".into());
+    }
+    let path = instance.join("nova-game.log");
+    if !path.is_file() { return Ok("Nessun log di gioco disponibile. Avvia Minecraft per generarlo.".into()); }
+    let content = fs::read_to_string(path).map_err(|e| format!("Impossibile leggere il log: {e}"))?;
+    let mut lines = content.lines().rev().take(180).collect::<Vec<_>>();
+    lines.reverse();
+    Ok(lines.join("\n"))
+}
+
 #[tauri::command]
 fn get_instance_profile_id(instance_path: String) -> Result<Option<String>, String> {
     let root = PathBuf::from(instance_path);
@@ -827,7 +843,8 @@ pub fn run() {
             get_instance_profile_id,
             backup_game_instance,
             list_instance_backups,
-            restore_game_instance_backup
+            restore_game_instance_backup,
+            read_instance_log
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
