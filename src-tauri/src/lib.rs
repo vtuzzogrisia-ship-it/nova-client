@@ -99,8 +99,7 @@ fn install_modrinth_recursive(
     install_modrinth_version(client, version, game_version, loader, mods_dir, visited, installed)
 }
 
-#[tauri::command]
-fn install_modrinth_project(project_id: String, game_version: String, loader: String, instance_path: Option<String>) -> Result<Vec<String>, String> {
+fn install_modrinth_project_blocking(project_id: String, game_version: String, loader: String, instance_path: Option<String>) -> Result<Vec<String>, String> {
     if !project_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err("ID progetto non valido".into());
     }
@@ -179,8 +178,7 @@ fn flatten_description(value: &serde_json::Value) -> String {
 }
 
 
-#[tauri::command]
-fn check_modrinth_mod_updates(instance_path: Option<String>, game_version: String, loader: String) -> Result<Vec<serde_json::Value>, String> {
+fn check_modrinth_mod_updates_blocking(instance_path: Option<String>, game_version: String, loader: String) -> Result<Vec<serde_json::Value>, String> {
     let dir = if let Some(path) = instance_path {
         let root = PathBuf::from(path);
         if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
@@ -211,8 +209,7 @@ fn check_modrinth_mod_updates(instance_path: Option<String>, game_version: Strin
     Ok(updates)
 }
 
-#[tauri::command]
-fn ping_minecraft_server(address: String) -> Result<serde_json::Value, String> {
+fn ping_minecraft_server_blocking(address: String) -> Result<serde_json::Value, String> {
     use std::io::{Read, Write};
     use std::net::{TcpStream, ToSocketAddrs};
     use std::time::{Duration, Instant};
@@ -368,8 +365,7 @@ fn detect_java_runtimes() -> Vec<JavaRuntimeInfo> {
     found
 }
 
-#[tauri::command]
-fn list_minecraft_versions() -> Result<serde_json::Value, String> {
+fn list_minecraft_versions_blocking() -> Result<serde_json::Value, String> {
     let response: serde_json::Value = reqwest::blocking::get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
         .map_err(|e| format!("Manifest Minecraft non raggiungibile: {e}"))?
         .error_for_status().map_err(|e| e.to_string())?
@@ -377,8 +373,7 @@ fn list_minecraft_versions() -> Result<serde_json::Value, String> {
     Ok(response)
 }
 
-#[tauri::command]
-fn install_vanilla_version(version_id: String) -> Result<String, String> {
+fn install_vanilla_version_blocking(version_id: String) -> Result<String, String> {
     if version_id.is_empty() || version_id.len() > 64 ||
         !version_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
         return Err("ID versione non valido".into());
@@ -413,8 +408,7 @@ fn install_vanilla_version(version_id: String) -> Result<String, String> {
     Ok(format!("Minecraft {version_id}: client jar e metadati installati e verificati. Librerie e asset saranno completati dal resolver prima dell'avvio."))
 }
 
-#[tauri::command]
-fn create_game_instance(name: String, version: String, loader: String) -> Result<String, String> {
+fn create_game_instance_blocking(name: String, version: String, loader: String) -> Result<String, String> {
     let clean = name.trim();
     if clean.is_empty() || clean.len() > 48 || !clean.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_') {
         return Err("Nome istanza non valido".into());
@@ -464,8 +458,7 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
 
 
 
-#[tauri::command]
-fn install_modrinth_modpack(instance_path: String, filename: String, data_base64: String) -> Result<Vec<String>, String> {
+fn install_modrinth_modpack_blocking(instance_path: String, filename: String, data_base64: String) -> Result<Vec<String>, String> {
     use std::io::Read;
     use base64::Engine;
     let root = PathBuf::from(instance_path);
@@ -542,8 +535,7 @@ fn install_modrinth_modpack(instance_path: String, filename: String, data_base64
     Ok(installed)
 }
 
-#[tauri::command]
-fn install_instance_shader_support(instance_path: String) -> Result<Vec<String>, String> {
+fn install_instance_shader_support_blocking(instance_path: String) -> Result<Vec<String>, String> {
     let root = PathBuf::from(instance_path);
     let metadata_path = root.join("nova-instance.json");
     if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
@@ -602,8 +594,7 @@ fn import_instance_pack(instance_path: String, kind: String, source_path: String
 }
 
 
-#[tauri::command]
-fn import_instance_pack_data(instance_path: String, kind: String, filename: String, data_base64: String) -> Result<String, String> {
+fn import_instance_pack_data_blocking(instance_path: String, kind: String, filename: String, data_base64: String) -> Result<String, String> {
     use base64::Engine;
     if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
     if filename.is_empty() || filename.len() > 180 || filename.contains('/') || filename.contains('\\') || !filename.to_lowercase().ends_with(".zip") {
@@ -622,8 +613,7 @@ fn import_instance_pack_data(instance_path: String, kind: String, filename: Stri
 }
 
 
-#[tauri::command]
-fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>, instance_path: Option<String>) -> Result<String, String> {
+fn install_game_profile_blocking(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>, instance_path: Option<String>) -> Result<String, String> {
     use mc_launcher_core::prelude::*;
     if game_version.is_empty() || game_version.len() > 64 || !game_version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
         return Err("Versione Minecraft non valida".into());
@@ -704,8 +694,7 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
     Ok(result.version_id)
 }
 
-#[tauri::command]
-fn launch_offline_profile(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
+fn launch_offline_profile_blocking(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
     use mc_launcher_core::prelude::*;
     use std::{fs::OpenOptions, process::{Command, Stdio}};
     if username.len() < 3 || username.len() > 16 || !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
@@ -811,8 +800,7 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
     None
 }
 
-#[tauri::command]
-fn install_java_runtime(major: u32) -> Result<String, String> {
+fn install_java_runtime_blocking(major: u32) -> Result<String, String> {
     use std::io::Cursor;
     if ![8, 16, 17, 21, 25].contains(&major) { return Err("Sono disponibili i runtime Java 8, 16, 17, 21 e 25".into()); }
     let os = match env::consts::OS { "windows" => "windows", "macos" => "mac", "linux" => "linux", _ => return Err("Sistema operativo non supportato per il download Java".into()) };
@@ -887,8 +875,7 @@ fn copy_instance_tree(source: &std::path::Path, destination: &std::path::Path) -
     Ok(())
 }
 
-#[tauri::command]
-fn backup_game_instance(instance_path: String) -> Result<String, String> {
+fn backup_game_instance_blocking(instance_path: String) -> Result<String, String> {
     use std::time::{SystemTime, UNIX_EPOCH};
     let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
     let source = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
@@ -927,8 +914,7 @@ fn list_instance_backups(instance_path: String) -> Result<Vec<String>, String> {
     Ok(result)
 }
 
-#[tauri::command]
-fn restore_game_instance_backup(instance_path: String, backup_path: String) -> Result<(), String> {
+fn restore_game_instance_backup_blocking(instance_path: String, backup_path: String) -> Result<(), String> {
     let root = minecraft_dir()?;
     let instances_root = root.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
     let backups_root = root.join("nova-backups").canonicalize().map_err(|_| "Cartella backup NOVA non trovata")?;
@@ -1002,7 +988,65 @@ fn list_game_instances() -> Result<Vec<serde_json::Value>, String> {
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
+pub 
+#[tauri::command]
+async fn install_modrinth_project(project_id: String, game_version: String, loader: String, instance_path: Option<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || install_modrinth_project_blocking(project_id, game_version, loader, instance_path)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn check_modrinth_mod_updates(instance_path: Option<String>, game_version: String, loader: String) -> Result<Vec<serde_json::Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || check_modrinth_mod_updates_blocking(instance_path, game_version, loader)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn ping_minecraft_server(address: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || ping_minecraft_server_blocking(address)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn create_game_instance(name: String, version: String, loader: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || create_game_instance_blocking(name, version, loader)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn install_instance_shader_support(instance_path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || install_instance_shader_support_blocking(instance_path)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn install_modrinth_modpack(instance_path: String, filename: String, data_base64: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || install_modrinth_modpack_blocking(instance_path, filename, data_base64)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn import_instance_pack_data(instance_path: String, kind: String, filename: String, data_base64: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || import_instance_pack_data_blocking(instance_path, kind, filename, data_base64)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>, instance_path: Option<String>) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || install_game_profile_blocking(game_version, loader, loader_version, java_executable, instance_path)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn launch_offline_profile(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
+    tauri::async_runtime::spawn_blocking(move || launch_offline_profile_blocking(version_id, instance_path, username, ram_gb, java_executable)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn install_java_runtime(major: u32) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || install_java_runtime_blocking(major)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn backup_game_instance(instance_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || backup_game_instance_blocking(instance_path)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn restore_game_instance_backup(instance_path: String, backup_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || restore_game_instance_backup_blocking(instance_path, backup_path)).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn list_minecraft_versions() -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(list_minecraft_versions_blocking).await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
+async fn install_vanilla_version(version_id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || install_vanilla_version_blocking(version_id)).await.map_err(|e| e.to_string())?
+}
+
+fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_minecraft_mods_path,
