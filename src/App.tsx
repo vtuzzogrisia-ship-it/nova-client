@@ -118,6 +118,8 @@ function LauncherTools() {
  const [java,setJava]=useState<JavaRuntime[]>([]);
  const [versions,setVersions]=useState<MinecraftVersionEntry[]>([]);
  const [selected,setSelected]=useState("1.21.4");
+ const [installedVersionId,setInstalledVersionId]=useState("");
+ const [username,setUsername]=useState("Player");
  const [instanceName,setInstanceName]=useState("NOVA");
  const [loader,setLoader]=useState("vanilla");
  const [message,setMessage]=useState("");
@@ -137,9 +139,10 @@ function LauncherTools() {
  useEffect(()=>{void refresh();},[]);
  const install=async()=>{
   setBusy(true);setMessage("Download dei metadati e del client Minecraft in corso…");
-  try{setMessage(await invoke<string>("install_vanilla_version",{versionId:selected}));}
+  try{const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
+ const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:4,javaExecutable:java.find(x=>x.available)?.executable||null});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
   try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);}
@@ -158,12 +161,14 @@ function LauncherTools() {
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button></div>
    </div>
    <div className="installed-list"><strong>Versioni Minecraft ufficiali</strong>
-    <div className="library-filters"><select value={selected} onChange={e=>setSelected(e.target.value)}>{versions.filter(v=>v.type==="release").slice(0,150).map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select><button className="primary-btn" disabled={busy||versions.length===0} onClick={()=>void install()}>{busy?"Attendere…":"Scarica versione"}</button></div>
-    <p>Il download corrente installa JSON versione e client JAR, con verifica SHA-1. Non è ancora sufficiente per avviare il gioco: resolver di librerie, natives e asset deve essere completato prima del comando di launch.</p>
+    <div className="library-filters"><select value={selected} onChange={e=>setSelected(e.target.value)}>{versions.filter(v=>v.type==="release").slice(0,150).map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select><button className="primary-btn" disabled={busy||versions.length===0} onClick={()=>void install()}>{busy?"Attendere…":"Installa profilo completo"}</button></div>
+    <p>L’installazione completa usa il resolver Minecraft per scaricare client, librerie, natives e asset, e prepara Fabric, Quilt, Forge o NeoForge quando selezionati.</p>
    </div>
    <div className="installed-list"><strong>Istanze indipendenti</strong>
     <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
+    <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
+    {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><p key={pack}>{pack}</p>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
