@@ -396,8 +396,16 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
             }
         }
     }
-    let metadata = serde_json::json!({"name":clean,"version":version,"loader":loader,"gameDir":path});
-    fs::write(path.join("nova-instance.json"), serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
+    let metadata_path = path.join("nova-instance.json");
+    let mut metadata: serde_json::Value = if metadata_path.is_file() {
+        serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+            .map_err(|e| format!("Metadati istanza non validi: {e}"))?
+    } else { serde_json::json!({"profileId": null}) };
+    metadata["name"] = serde_json::json!(clean);
+    metadata["version"] = serde_json::json!(version);
+    metadata["loader"] = serde_json::json!(loader);
+    metadata["gameDir"] = serde_json::json!(path);
+    fs::write(metadata_path, serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
 }
@@ -458,7 +466,7 @@ fn import_instance_pack_data(instance_path: String, kind: String, filename: Stri
 
 
 #[tauri::command]
-fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>) -> Result<String, String> {
+fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>, instance_path: Option<String>) -> Result<String, String> {
     use mc_launcher_core::prelude::*;
     if game_version.is_empty() || game_version.len() > 64 || !game_version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
         return Err("Versione Minecraft non valida".into());
@@ -489,6 +497,19 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
     });
     if let Some(original) = original_path { env::set_var("PATH", original); } else { env::remove_var("PATH"); }
     let result = install_result.map_err(|e| format!("Installazione Minecraft/loader fallita: {e}"))?;
+    if let Some(path) = instance_path {
+        let instance = PathBuf::from(path);
+        let metadata_path = instance.join("nova-instance.json");
+        if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+        let mut metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+            .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+        if metadata["version"].as_str() != Some(game_version.as_str()) || metadata["loader"].as_str() != Some(loader.as_str()) {
+            return Err("La versione o il loader dell'istanza non corrispondono al profilo installato".into());
+        }
+        metadata["profileId"] = serde_json::json!(result.version_id);
+        fs::write(metadata_path, serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+    }
     Ok(result.version_id)
 }
 
@@ -643,6 +664,17 @@ fn install_java_runtime(major: u32) -> Result<String, String> {
 }
 
 
+
+#[tauri::command]
+fn get_instance_profile_id(instance_path: String) -> Result<Option<String>, String> {
+    let root = PathBuf::from(instance_path);
+    let metadata_path = root.join("nova-instance.json");
+    if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let metadata: serde_json::Value = serde_json::from_slice(&fs::read(metadata_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+    Ok(metadata["profileId"].as_str().map(str::to_string))
+}
+
 #[tauri::command]
 fn list_game_instances() -> Result<Vec<serde_json::Value>, String> {
     let root = minecraft_dir()?.join("nova-instances");
@@ -685,7 +717,8 @@ pub fn run() {
             install_game_profile,
             launch_offline_profile,
             install_java_runtime,
-            list_game_instances
+            list_game_instances,
+            get_instance_profile_id
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
