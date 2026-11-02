@@ -162,7 +162,7 @@ function LauncherTools({ram}:{ram:number}) {
   <section className="library-panel">
    <div className="installed-list"><strong>Runtime Java rilevati</strong>
     {java.length===0?<p>Ricerca Java in corso…</p>:java.map((item,i)=><div className="installed-row" key={i}><span><strong>{item.available?item.version:"Java non trovato"}</strong><small>{item.executable||item.error}</small></span><span>{item.major?"Java "+item.major:""}</span></div>)}
-    <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button><button className="text-btn" onClick={()=>void installJava(17)} disabled={busy}>Installa Java 17</button><button className="text-btn" onClick={()=>void installJava(21)} disabled={busy}>Installa Java 21</button></div>
+    <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button><button className="text-btn" onClick={()=>void installJava(8)} disabled={busy}>Installa Java 8</button><button className="text-btn" onClick={()=>void installJava(17)} disabled={busy}>Installa Java 17</button><button className="text-btn" onClick={()=>void installJava(21)} disabled={busy}>Installa Java 21</button></div>
     <label className="settings-field">Runtime per l’avvio<select value={javaExecutable} onChange={e=>setJavaExecutable(e.target.value)}><option value="auto">Automatico (versione Minecraft)</option>{java.filter(x=>x.available&&x.executable).map(x=><option key={x.executable} value={x.executable}>{x.version} · {x.executable}</option>)}</select></label>
    </div>
    <div className="installed-list"><strong>Versioni Minecraft ufficiali</strong>
