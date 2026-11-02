@@ -449,13 +449,17 @@ fn launch_offline_profile(version_id: String, instance_path: String, username: S
     let log_path = game_dir.join("nova-game.log");
     let log = OpenOptions::new().create(true).append(true).open(log_path).map_err(|e| e.to_string())?;
     let error_log = log.try_clone().map_err(|e| e.to_string())?;
+    let mut launch_args = launch.args.clone();
+    let main_class = version.main_class.as_deref().unwrap_or("");
+    let main_index = launch_args.iter().position(|arg| arg == main_class)
+        .ok_or("Main class non trovato negli argomenti di avvio")?;
+    launch_args.insert(main_index, format!("-Xmx{}G", ram_gb));
     let mut command = Command::new(&launch.executable);
-    command.args(&launch.args)
+    command.args(&launch_args)
         .current_dir(&launch.working_dir)
         .stdout(Stdio::from(log))
         .stderr(Stdio::from(error_log));
     for (key, value) in launch.env { command.env(key, value); }
-    command.arg(format!("-Xmx{}G", ram_gb));
     let child = command.spawn().map_err(|e| format!("Avvio Minecraft non riuscito: {e}. Controlla Java e il log dell'istanza."))?;
     Ok(child.id())
 }
