@@ -11,8 +11,9 @@ fn minecraft_dir() -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
-fn get_minecraft_mods_path() -> Result<String, String> {
-    Ok(minecraft_dir()?.join("mods").to_string_lossy().to_string())
+fn get_minecraft_mods_path(instance_path: Option<String>) -> Result<String, String> {
+    let dir = if let Some(path) = instance_path { let root = PathBuf::from(path); if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); } root.join("mods") } else { minecraft_dir()?.join("mods") };
+    Ok(dir.to_string_lossy().to_string())
 }
 
 #[tauri::command]
