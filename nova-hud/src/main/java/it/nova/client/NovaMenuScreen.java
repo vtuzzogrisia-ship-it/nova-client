@@ -94,7 +94,7 @@ public final class NovaMenuScreen extends Screen {
         // Actions: Reset & Close
         addDrawableChild(ButtonWidget.builder(Text.literal("Ripristina Predefiniti"), button -> {
             NovaHud.resetDefaults();
-            this.clearAndInit();
+            if (this.client != null) this.client.setScreen(new NovaMenuScreen());
         }).dimensions(left, y, btnWidth / 2 - 2, btnHeight).build());
 
         addDrawableChild(ButtonWidget.builder(Text.literal("Chiudi  ·  ESC"), button -> close())

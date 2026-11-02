@@ -1464,11 +1464,13 @@ fn update_all_modrinth_mods_blocking(
     game_version: String,
     loader: String,
 ) -> Result<Vec<String>, String> {
-    let updates = check_modrinth_mod_updates_blocking(instance_path.clone(), game_version.clone(), loader.clone())?;
+    let updates = check_modrinth_mod_updates_blocking(Some(instance_path.clone()), game_version.clone(), loader.clone())?;
     let mut updated = Vec::new();
     for update in updates {
-        if let Ok(installed_files) = install_modrinth_project_blocking(update.project_id, game_version.clone(), loader.clone(), Some(instance_path.clone())) {
-            updated.extend(installed_files);
+        if let Some(project_id) = update.get("projectId").and_then(|v| v.as_str()) {
+            if let Ok(installed_files) = install_modrinth_project_blocking(project_id.to_string(), game_version.clone(), loader.clone(), Some(instance_path.clone())) {
+                updated.extend(installed_files);
+            }
         }
     }
     Ok(updated)
