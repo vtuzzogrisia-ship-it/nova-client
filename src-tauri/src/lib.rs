@@ -575,7 +575,7 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
 #[tauri::command]
 fn install_java_runtime(major: u32) -> Result<String, String> {
     use std::io::Cursor;
-    if ![17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 17 e 21".into()); }
+    if ![8, 17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 8, 17 e 21".into()); }
     let os = match env::consts::OS { "windows" => "windows", "macos" => "mac", "linux" => "linux", _ => return Err("Sistema operativo non supportato per il download Java".into()) };
     let arch = match env::consts::ARCH { "x86_64" => "x64", "aarch64" => "aarch64", _ => return Err("Architettura non supportata per il download Java".into()) };
     let destination = minecraft_dir()?.join("nova-runtimes").join(format!("temurin-{major}-{os}-{arch}"));
