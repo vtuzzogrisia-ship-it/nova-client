@@ -12,14 +12,14 @@ type Mod = { id: string; name: string; category: string; description: string; en
 type CatalogItem = { id: string | number; name: string; summary: string; icon?: string; url: string; downloads?: number; source: string };
 type ModUpdate = { projectId: string; currentFile: string; latestFile: string; versionId: string };
 const initialMods: Mod[] = [
-  { id: "sodium", name: "Sodium", category: "Performance", description: "Rendering engine ottimizzato per aumentare gli FPS.", enabled: true, status: "Pronto per l'integrazione" },
-  { id: "lithium", name: "Lithium", category: "Performance", description: "Ottimizza la logica interna del gioco e il tick.", enabled: true, status: "Pronto per l'integrazione" },
-  { id: "ferrite", name: "FerriteCore", category: "Performance", description: "Riduce l'utilizzo della memoria.", enabled: true, status: "Pronto per l'integrazione" },
-  { id: "entity", name: "Entity Culling", category: "Performance", description: "Evita il rendering delle entità non visibili.", enabled: false, status: "Pronto per l'integrazione" },
+  { id: "sodium", name: "Sodium", category: "Performance", description: "Rendering engine ottimizzato per aumentare gli FPS.", enabled: true, status: "Non installata · cerca nel catalogo Modrinth" },
+  { id: "lithium", name: "Lithium", category: "Performance", description: "Ottimizza la logica interna del gioco e il tick.", enabled: true, status: "Non installata · cerca nel catalogo Modrinth" },
+  { id: "ferrite", name: "FerriteCore", category: "Performance", description: "Riduce l'utilizzo della memoria.", enabled: true, status: "Non installata · cerca nel catalogo Modrinth" },
+  { id: "entity", name: "Entity Culling", category: "Performance", description: "Evita il rendering delle entità non visibili.", enabled: false, status: "Non installata · cerca nel catalogo Modrinth" },
   { id: "cps", name: "CPS Counter", category: "HUD", description: "Contatore click al secondo.", enabled: true, status: "HUD in-game Fabric · Minecraft 1.21.4" },
-  { id: "keystrokes", name: "Keystrokes", category: "HUD", description: "Mostra i tasti WASD e i click del mouse.", enabled: true, status: "Anteprima UI · HUD in-game non ancora collegato" },
-  { id: "fps", name: "FPS Display", category: "HUD", description: "Visualizza gli FPS sullo schermo.", enabled: true, status: "Anteprima UI · HUD in-game non ancora collegato" },
-  { id: "coords", name: "Coordinates", category: "HUD", description: "Coordinate e direzione del giocatore.", enabled: false, status: "Anteprima UI · HUD in-game non ancora collegato" },
+  { id: "keystrokes", name: "Keystrokes", category: "HUD", description: "Mostra i tasti WASD e i click del mouse.", enabled: true, status: "HUD in-game NOVA · Fabric/Quilt 1.21.4" },
+  { id: "fps", name: "FPS Display", category: "HUD", description: "Visualizza gli FPS sullo schermo.", enabled: true, status: "HUD in-game NOVA · Fabric/Quilt 1.21.4" },
+  { id: "coords", name: "Coordinates", category: "HUD", description: "Coordinate e direzione del giocatore.", enabled: false, status: "HUD in-game NOVA · Fabric/Quilt 1.21.4" },
   { id: "sprint", name: "Toggle Sprint", category: "Gameplay", description: "Commutazione sprint configurabile.", enabled: false, status: "Non ancora incluso nel modulo HUD NOVA" }
 ];
 
