@@ -1,4 +1,6 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::PathBuf, sync::Mutex};
+
+static INSTALL_JAVA_LOCK: Mutex<()> = Mutex::new(());
 
 fn minecraft_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "windows")]
@@ -456,7 +458,7 @@ fn import_instance_pack_data(instance_path: String, kind: String, filename: Stri
 
 
 #[tauri::command]
-fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>) -> Result<String, String> {
+fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>, java_executable: Option<String>) -> Result<String, String> {
     use mc_launcher_core::prelude::*;
     if game_version.is_empty() || game_version.len() > 64 || !game_version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
         return Err("Versione Minecraft non valida".into());
@@ -470,11 +472,23 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
         _ => return Err("Mod loader non supportato".into()),
     };
     let launcher = Launcher::new(minecraft_dir().map_err(|e| e.to_string())?);
-    let result = launcher.install(InstallRequest {
+    let _guard = INSTALL_JAVA_LOCK.lock().map_err(|_| "Blocco installazione Java non disponibile")?;
+    let original_path = env::var_os("PATH");
+    if let Some(executable) = java_executable {
+        if let Some(bin_dir) = PathBuf::from(executable).parent() {
+            let mut paths = vec![bin_dir.to_path_buf()];
+            if let Some(existing) = &original_path { paths.extend(env::split_paths(existing)); }
+            let joined = env::join_paths(paths).map_err(|e| format!("Percorso Java non valido: {e}"))?;
+            env::set_var("PATH", joined);
+        }
+    }
+    let install_result = launcher.install(InstallRequest {
         minecraft_version: game_version,
         loader: loader_spec,
         java: JavaInstallPolicy::Never,
-    }).map_err(|e| format!("Installazione Minecraft/loader fallita: {e}"))?;
+    });
+    if let Some(original) = original_path { env::set_var("PATH", original); } else { env::remove_var("PATH"); }
+    let result = install_result.map_err(|e| format!("Installazione Minecraft/loader fallita: {e}"))?;
     Ok(result.version_id)
 }
 
