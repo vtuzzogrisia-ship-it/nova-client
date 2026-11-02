@@ -95,7 +95,7 @@ function App() {
           <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
-        {page === "launcher" && <LauncherTools/>}
+        {page === "launcher" && <LauncherTools ram={ram}/>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); toast(`Profilo "${profile.name}" applicato alla configurazione rapida.`); setPage("home"); }}/>}
@@ -114,7 +114,7 @@ function App() {
 
 type JavaRuntime = {available:boolean; executable?:string; version?:string; major?:number; error?:string};
 type MinecraftVersionEntry = {id:string;type:string;url:string};
-function LauncherTools() {
+function LauncherTools({ram}:{ram:number}) {
  const [java,setJava]=useState<JavaRuntime[]>([]);
  const [versions,setVersions]=useState<MinecraftVersionEntry[]>([]);
  const [selected,setSelected]=useState("1.21.4");
@@ -142,7 +142,7 @@ function LauncherTools() {
   try{const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
- const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:4,javaExecutable:java.find(x=>x.available)?.executable||null});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
+ const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:java.find(x=>x.available)?.executable||null});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
   try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);}
