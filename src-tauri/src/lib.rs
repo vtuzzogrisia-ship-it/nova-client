@@ -549,7 +549,7 @@ fn activate_instance_pack(instance_path: String, kind: String, filename: String,
         lines.retain(|line| !line.starts_with("resourcePacks:"));
         lines.push(format!("resourcePacks:{serialized}"));
     } else {
-        let current = lines.iter().find_map(|line| line.strip_prefix("shaderPack:")).unwrap_or("");
+        let current = lines.iter().find_map(|line| line.strip_prefix("shaderPack:")).unwrap_or("").to_string();
         if enabled || current == filename { lines.retain(|line| !line.starts_with("shaderPack:")); }
         if enabled { lines.push(format!("shaderPack:{filename}")); }
     }
