@@ -6,7 +6,7 @@ import {
   Activity, Box, ChevronDown, CircleHelp, Cpu,
   Gamepad2, Gauge, Globe2, Layers3, Menu, Monitor,
   Play, Search, Settings2, ShieldCheck, Sparkles,
-  X, Zap, Download, ExternalLink, Users, Send, MessageCircle, UserPlus, Server, Copy
+  X, Zap, Download, ExternalLink, Users, Send, MessageCircle, UserPlus, Server
 } from "lucide-react";
 
 type Mod = { id: string; name: string; category: string; description: string; enabled: boolean; status: string };
@@ -241,7 +241,6 @@ function FriendsChat() {
   setInvites(items=>items.filter(x=>x.id!==invite.id));
   setStatus("Server aggiunto ai preferiti: "+invite.serverAddress);
  };
- const openExternal=(text:string)=>{void navigator.clipboard?.writeText(text).then(()=>setStatus("Copiato negli appunti")).catch(()=>setStatus("Copia non disponibile"));};
  const visibleMessages=messages.filter(item=>selected&&item.friendId===selected.id);
  return <><div className="page-title"><div className="eyebrow">NOVA DIRECT</div><h1>Amici e <em>chat</em></h1><p>Richieste amicizia, messaggi diretti e inviti ai server Minecraft.</p></div>
   <section className="social-setup">
