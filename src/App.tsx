@@ -149,7 +149,7 @@ function LauncherTools({ram}:{ram:number}) {
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
-  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);setInstalledVersionId("");localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const loadPacks=async(kind=packKind)=>{
