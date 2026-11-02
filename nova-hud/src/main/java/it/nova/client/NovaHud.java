@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
+import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
 
@@ -15,6 +16,10 @@ import java.util.Deque;
 
 public final class NovaHud implements ClientModInitializer {
     private static KeyBinding menuKey;
+    private static KeyBinding fpsKey;
+    private static KeyBinding cpsKey;
+    private static KeyBinding keysKey;
+    private static KeyBinding coordinatesKey;
     private static boolean menuOpen = false;
     private static boolean showFps = true;
     private static boolean showCps = true;
@@ -33,15 +38,25 @@ public final class NovaHud implements ClientModInitializer {
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
                 "category.nova_hud"
         ));
+        fpsKey = registerToggle("key.nova_hud.fps", GLFW.GLFW_KEY_F);
+        cpsKey = registerToggle("key.nova_hud.cps", GLFW.GLFW_KEY_C);
+        keysKey = registerToggle("key.nova_hud.keystrokes", GLFW.GLFW_KEY_K);
+        coordinatesKey = registerToggle("key.nova_hud.coordinates", GLFW.GLFW_KEY_X);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (menuKey.wasPressed()) {
-                menuOpen = !menuOpen;
-            }
+            while (menuKey.wasPressed()) menuOpen = !menuOpen;
+            while (fpsKey.wasPressed()) showFps = !showFps;
+            while (cpsKey.wasPressed()) showCps = !showCps;
+            while (keysKey.wasPressed()) showKeys = !showKeys;
+            while (coordinatesKey.wasPressed()) showCoordinates = !showCoordinates;
         });
         HudRenderCallback.EVENT.register(NovaHud::render);
     }
 
-    private static void render(DrawContext context, float tickDelta) {
+    private static KeyBinding registerToggle(String translationKey, int keyCode) {
+        return KeyBindingHelper.registerKeyBinding(new KeyBinding(translationKey, InputUtil.Type.KEYSYM, keyCode, "category.nova_hud"));
+    }
+
+    private static void render(DrawContext context, RenderTickCounter tickCounter) {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client.player == null || client.world == null) return;
 
@@ -88,7 +103,6 @@ public final class NovaHud implements ClientModInitializer {
             context.drawTextWithShadow(client.textRenderer, "Right Shift: chiudi menu", left + 10, top + 98, 0xFFB99BFF);
         }
 
-        if (client.options.attackKey.wasPressed()) showCps = !showCps;
     }
 
     private static void drawKey(DrawContext context, MinecraftClient client, String label, boolean pressed, int x, int y) {
