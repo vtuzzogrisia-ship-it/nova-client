@@ -957,7 +957,7 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) => {
                 let details = read_launch_log_tail(&log_path);
-                return Err(format!("Minecraft si è chiuso subito (codice {}).\\n\\nUltime righe del log:\\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
+                return Err(format!("Minecraft si è chiuso subito (codice }).\n\nUltime righe del log:\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
             }
             None if started.elapsed() >= Duration::from_secs(8) => break,
             None => thread::sleep(Duration::from_millis(250)),
