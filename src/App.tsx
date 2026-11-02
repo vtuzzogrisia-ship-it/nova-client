@@ -172,7 +172,7 @@ function LauncherTools({ram}:{ram:number}) {
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><div className="installed-row" key={pack}><span>{pack}</span><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack}).then(()=>setMessage("Pacchetto attivato: "+pack)).catch(e=>setMessage(String(e)))}>Attiva</button></div>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
-    <p>Ogni istanza ha directory separate. Il modulo HUD NOVA viene aggiunto automaticamente alle istanze Fabric e Quilt; Forge/NeoForge non caricano questo modulo. Il profilo loader deve essere installato prima dell’avvio.</p>
+    <p>Ogni istanza ha directory separate. Le istanze Fabric ricevono Fabric API, Iris e Sodium; il modulo HUD NOVA (FPS, CPS, WASD, coordinate e menu Right Shift) viene incluso per Minecraft 1.21.4. Per altre versioni o loader il HUD NOVA non è ancora disponibile.</p>
    </div>
    {message&&<div className="library-message">{message}</div>}
   </section>
