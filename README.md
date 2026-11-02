@@ -4,9 +4,7 @@
 
 ## Current status
 
-The repository currently contains the first Tauri 2 desktop-shell and React interface prototype. The downloadable desktop installer is being built through GitHub Actions.
-
-This is not yet a complete Lunar-equivalent launcher. Minecraft version installation, offline/local profile launching, managed game instances, dependency-aware mod installation, and a true in-game HUD/overlay still require implementation and testing. The server list now includes a Java Edition status ping with latency, version and player counts. Microsoft account login is intentionally excluded. Modrinth project downloads can now be installed into the default Minecraft mods folder from the desktop app. The desktop UI preview is not evidence that those systems are already working.
+The repository now contains a Tauri 2 desktop launcher with a React interface and a Rust Minecraft launch engine. Desktop installers are built by GitHub Actions. The launcher can install complete Minecraft profiles, prepare isolated instances, install Modrinth mods with required dependencies, import/activate resource and shader packs, and start a local offline player session. The bundled Fabric HUD targets Minecraft 1.21.4. See the implementation limits below: Java is detected but not downloaded automatically, and the in-game HUD is currently Fabric 1.21.4 only. Microsoft account login is intentionally excluded.
 
 ## Launcher implementation status
 
@@ -18,7 +16,7 @@ Offline launch uses a local player name and does not authenticate to premium onl
 
 ## Development
 
-Install dependencies with `npm install`, then run `npm run dev` for the Vite development server. Use `npm run tauri dev` to launch the desktop shell when the Rust toolchain and platform prerequisites are installed.
+Install dependencies with `npm install`, then run `npm run dev` for the Vite development server. Use `npm run tauri dev` to launch the desktop shell when the Rust toolchain and platform prerequisites are installed. To build the bundled NOVA HUD as part of a desktop release, install JDK 21 and Gradle 8.10.2; the desktop workflow builds and embeds the HUD JAR automatically.
 
 ## Product direction
 
