@@ -461,9 +461,18 @@ fn launch_offline_profile(version_id: String, instance_path: String, username: S
     let root = minecraft_dir().map_err(|e| e.to_string())?;
     let launcher = Launcher::new(&root);
     let version = launcher.load_version(&version_id).map_err(|e| format!("Profilo non installato o incompleto: {e}"))?;
+    let required_java = version.java_version.as_ref().map(|value| value.major_version as u32);
+    let java_path = if let Some(explicit) = java_executable {
+        PathBuf::from(explicit)
+    } else {
+        detect_java_runtimes().into_iter()
+            .find(|runtime| runtime.available && (required_java.is_none() || runtime.major == required_java))
+            .and_then(|runtime| runtime.executable.map(PathBuf::from))
+            .ok_or_else(|| format!("Java {} non trovato. Installa il runtime richiesto dalla sezione Launcher.", required_java.map(|v| v.to_string()).unwrap_or_else(|| "compatibile".into())))?
+    };
     let options = LaunchOptions {
         account: Account::offline(username),
-        java_executable: java_executable.map(PathBuf::from),
+        java_executable: Some(java_path),
         game_directory: Some(game_dir.clone()),
         ..Default::default()
     };
