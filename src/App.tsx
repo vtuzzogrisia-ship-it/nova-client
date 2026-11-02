@@ -140,7 +140,7 @@ function LauncherTools({ram}:{ram:number}) {
  useEffect(()=>{void refresh();},[]);
  const installJava=async(major:number)=>{setBusy(true);setMessage("Download Java "+major+" in corso…");try{const path=await invoke<string>("install_java_runtime",{major});setJavaExecutable("auto");setJava(current=>[...current.filter(x=>x.executable!==path),{available:true,executable:path,version:"Temurin Java "+major,major}]);setMessage("Java "+major+" installato: "+path);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const install=async()=>{
-  setBusy(true);setMessage("Download dei metadati e del client Minecraft in corso…");
+  setBusy(true);setMessage("Download di client, librerie, asset e loader in corso…");
   try{const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
@@ -164,11 +164,11 @@ function LauncherTools({ram}:{ram:number}) {
     <label className="settings-field">Runtime per l’avvio<select value={javaExecutable} onChange={e=>setJavaExecutable(e.target.value)}><option value="auto">Automatico (versione Minecraft)</option>{java.filter(x=>x.available&&x.executable).map(x=><option key={x.executable} value={x.executable}>{x.version} · {x.executable}</option>)}</select></label>
    </div>
    <div className="installed-list"><strong>Versioni Minecraft ufficiali</strong>
-    <div className="library-filters"><select value={selected} onChange={e=>setSelected(e.target.value)}>{versions.filter(v=>v.type==="release").slice(0,150).map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select><button className="primary-btn" disabled={busy||versions.length===0} onClick={()=>void install()}>{busy?"Attendere…":"Installa profilo completo"}</button></div>
+    <div className="library-filters"><select value={selected} onChange={e=>{setSelected(e.target.value);setInstalledVersionId("");}}>{versions.filter(v=>v.type==="release").slice(0,150).map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select><button className="primary-btn" disabled={busy||versions.length===0} onClick={()=>void install()}>{busy?"Attendere…":"Installa profilo completo"}</button></div>
     <p>L’installazione completa usa il resolver Minecraft per scaricare client, librerie, natives e asset, e prepara Fabric, Quilt, Forge o NeoForge quando selezionati.</p>
    </div>
    <div className="installed-list"><strong>Istanze indipendenti</strong>
-    <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
+    <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>{setLoader(e.target.value);setInstalledVersionId("");}}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
