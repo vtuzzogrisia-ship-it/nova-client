@@ -170,7 +170,7 @@ function LauncherTools({ram}:{ram:number}) {
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
-    {packs.map(pack=><p key={pack}>{pack}</p>)}
+    {packs.map(pack=><div className="installed-row" key={pack}><span>{pack}</span><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack}).then(()=>setMessage("Pacchetto attivato: "+pack)).catch(e=>setMessage(String(e)))}>Attiva</button></div>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
     <p>Ogni istanza ha directory separate. Il modulo HUD NOVA viene aggiunto automaticamente alle istanze Fabric e Quilt; Forge/NeoForge non caricano questo modulo. Il profilo loader deve essere installato prima dell’avvio.</p>
    </div>
