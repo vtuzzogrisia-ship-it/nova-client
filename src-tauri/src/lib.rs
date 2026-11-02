@@ -341,6 +341,16 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
     }
+    if ["fabric", "quilt"].contains(&loader.as_str()) {
+        use base64::Engine;
+        let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
+            if bytes.starts_with(b"PK\\x03\\x04") {
+                fs::write(path.join("mods").join("nova-hud.jar"), bytes)
+                    .map_err(|e| format!("Impossibile installare NOVA HUD nell'istanza: {e}"))?;
+            }
+        }
+    }
     let metadata = serde_json::json!({"name":clean,"version":version,"loader":loader,"gameDir":path});
     fs::write(path.join("nova-instance.json"), serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
