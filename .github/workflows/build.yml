@@ -22,7 +22,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -38,7 +37,7 @@ jobs:
           gradle-version: "8.11.1"
 
       - name: Install Node dependencies
-        run: npm ci
+        run: npm install
 
       - name: Generate Windows bundle icons
         run: node scripts/generate-icons.mjs
