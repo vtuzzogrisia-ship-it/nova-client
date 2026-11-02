@@ -184,6 +184,166 @@ fn remove_installed_mod(filename: String) -> Result<(), String> {
     fs::remove_file(path).map_err(|e| e.to_string())
 }
 
+
+
+#[derive(serde::Serialize)]
+struct JavaRuntimeInfo {
+    available: bool,
+    executable: Option<String>,
+    version: Option<String>,
+    major: Option<u32>,
+    error: Option<String>,
+}
+
+fn java_candidates() -> Vec<String> {
+    let mut values = Vec::new();
+    if let Ok(value) = env::var("JAVA_HOME") {
+        values.push(PathBuf::from(value).join(if cfg!(windows) { "bin/java.exe" } else { "bin/java" }).to_string_lossy().to_string());
+    }
+    values.push(if cfg!(windows) { "java.exe".into() } else { "java".into() });
+    values
+}
+
+#[tauri::command]
+fn detect_java_runtimes() -> Vec<JavaRuntimeInfo> {
+    use std::process::Command;
+    let mut found = Vec::new();
+    for candidate in java_candidates() {
+        let output = Command::new(&candidate).arg("-version").output();
+        let output = match output {
+            Ok(value) if value.status.success() || !value.stderr.is_empty() => value,
+            _ => continue,
+        };
+        let text = String::from_utf8_lossy(&output.stderr).to_string()
+            + &String::from_utf8_lossy(&output.stdout);
+        let version = text.lines().find(|line| line.contains("version")).unwrap_or("").trim().trim_matches('"').to_string();
+        let quoted = text.split('"').nth(1).unwrap_or("");
+        let major = if quoted.starts_with("1.") {
+            quoted.split('.').nth(1).and_then(|v| v.parse::<u32>().ok())
+        } else {
+            quoted.split('.').next().and_then(|v| v.parse::<u32>().ok())
+        };
+        if !found.iter().any(|item: &JavaRuntimeInfo| item.executable.as_deref() == Some(candidate.as_str())) {
+            found.push(JavaRuntimeInfo {
+                available: true,
+                executable: Some(candidate.clone()),
+                version: Some(if version.is_empty() { quoted.to_string() } else { version }),
+                major,
+                error: None,
+            });
+        }
+    }
+    if found.is_empty() {
+        found.push(JavaRuntimeInfo { available: false, executable: None, version: None, major: None,
+            error: Some("Java non trovato. Installa un runtime Java compatibile (Java 21 per le versioni recenti) e riprova.".into()) });
+    }
+    found
+}
+
+#[tauri::command]
+fn list_minecraft_versions() -> Result<serde_json::Value, String> {
+    let response: serde_json::Value = reqwest::blocking::get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
+        .map_err(|e| format!("Manifest Minecraft non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?
+        .json().map_err(|e| format!("Manifest Minecraft non valido: {e}"))?;
+    Ok(response)
+}
+
+#[tauri::command]
+fn install_vanilla_version(version_id: String) -> Result<String, String> {
+    if version_id.is_empty() || version_id.len() > 64 ||
+        !version_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+        return Err("ID versione non valido".into());
+    }
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("NOVA-CLIENT/0.1.0")
+        .build().map_err(|e| e.to_string())?;
+    let manifest: serde_json::Value = client.get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json")
+        .send().map_err(|e| e.to_string())?.error_for_status().map_err(|e| e.to_string())?
+        .json().map_err(|e| e.to_string())?;
+    let entry = manifest["versions"].as_array().and_then(|versions|
+        versions.iter().find(|item| item["id"].as_str() == Some(version_id.as_str())))
+        .ok_or("Versione Minecraft non presente nel manifest ufficiale")?;
+    let metadata_url = entry["url"].as_str().ok_or("URL metadati versione mancante")?;
+    let metadata: serde_json::Value = client.get(metadata_url).send().map_err(|e| e.to_string())?
+        .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| e.to_string())?;
+    let client_info = &metadata["downloads"]["client"];
+    let download_url = client_info["url"].as_str().ok_or("Download client non disponibile per questa versione")?;
+    let expected_sha1 = client_info["sha1"].as_str().unwrap_or("").to_lowercase();
+    let bytes = client.get(download_url).send().map_err(|e| format!("Download Minecraft fallito: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?.bytes().map_err(|e| e.to_string())?;
+    use sha1::{Digest, Sha1};
+    let actual_sha1 = format!("{:x}", Sha1::digest(&bytes));
+    if !expected_sha1.is_empty() && actual_sha1 != expected_sha1 {
+        return Err("Verifica SHA-1 del client Minecraft non riuscita".into());
+    }
+    let root = minecraft_dir()?.join("versions").join(&version_id);
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    fs::write(root.join(format!("{version_id}.jar")), &bytes).map_err(|e| e.to_string())?;
+    fs::write(root.join(format!("{version_id}.json")), serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(format!("Minecraft {version_id}: client jar e metadati installati e verificati. Librerie e asset saranno completati dal resolver prima dell'avvio."))
+}
+
+#[tauri::command]
+fn create_game_instance(name: String, version: String, loader: String) -> Result<String, String> {
+    let clean = name.trim();
+    if clean.is_empty() || clean.len() > 48 || !clean.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_') {
+        return Err("Nome istanza non valido".into());
+    }
+    if version.is_empty() || version.len() > 64 || !version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+        return Err("Versione non valida".into());
+    }
+    if !["vanilla", "fabric", "quilt", "forge", "neoforge"].contains(&loader.as_str()) {
+        return Err("Loader non supportato".into());
+    }
+    let slug = clean.to_lowercase().replace(' ', "-");
+    let path = minecraft_dir()?.join("nova-instances").join(format!("{slug}-{version}-{loader}"));
+    for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
+        fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
+    }
+    let metadata = serde_json::json!({"name":clean,"version":version,"loader":loader,"gameDir":path});
+    fs::write(path.join("nova-instance.json"), serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn list_instance_packs(instance_path: String, kind: String) -> Result<Vec<String>, String> {
+    if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
+    let root = PathBuf::from(&instance_path);
+    if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let dir = root.join(kind);
+    let mut values = Vec::new();
+    if dir.exists() {
+        for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
+            let path = entry.map_err(|e| e.to_string())?.path();
+            if path.is_file() {
+                if let Some(name) = path.file_name().and_then(|x| x.to_str()) { values.push(name.to_string()); }
+            }
+        }
+    }
+    values.sort();
+    Ok(values)
+}
+
+#[tauri::command]
+fn import_instance_pack(instance_path: String, kind: String, source_path: String) -> Result<String, String> {
+    if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
+    let root = PathBuf::from(&instance_path);
+    if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let source = PathBuf::from(&source_path);
+    if !source.is_file() { return Err("File pacchetto non trovato".into()); }
+    let filename = source.file_name().and_then(|x| x.to_str()).ok_or("Nome file non valido")?;
+    if !filename.to_lowercase().ends_with(".zip") {
+        return Err("Sono supportati pacchetti .zip (resource pack o shader pack)".into());
+    }
+    let destination = root.join(kind).join(filename);
+    fs::create_dir_all(destination.parent().ok_or("Destinazione non valida")?).map_err(|e| e.to_string())?;
+    fs::copy(&source, &destination).map_err(|e| e.to_string())?;
+    Ok(filename.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -192,7 +352,13 @@ pub fn run() {
             list_installed_mods,
             install_modrinth_project,
             remove_installed_mod,
-            ping_minecraft_server
+            ping_minecraft_server,
+            detect_java_runtimes,
+            list_minecraft_versions,
+            install_vanilla_version,
+            create_game_instance,
+            list_instance_packs,
+            import_instance_pack
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
