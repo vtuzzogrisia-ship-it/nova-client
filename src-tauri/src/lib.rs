@@ -430,16 +430,15 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
     }
-    if version == "1.21.4" && (loader == "fabric" || loader == "quilt") {
+    if loader == "fabric" && version == "1.21.4" {
         let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0")
             .build().map_err(|e| e.to_string())?;
         let mut visited = std::collections::HashSet::new();
         let mut installed = Vec::new();
-        let (api_project, api_loader) = if loader == "quilt" { ("qvIfYCYJ", "quilt") } else { ("P7dR8mSH", "fabric") };
-        install_modrinth_recursive(&client, api_project, &version, api_loader, &path.join("mods"), &mut visited, &mut installed)
+        install_modrinth_recursive(&client, "P7dR8mSH", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
             .map_err(|e| format!("Installazione API necessaria per NOVA HUD non riuscita: {e}"))?;
     }
-    if (loader == "fabric" || loader == "quilt") && version == "1.21.4" {
+    if loader == "fabric" && version == "1.21.4" {
         use base64::Engine;
         let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
@@ -551,8 +550,8 @@ fn install_instance_shader_support(instance_path: String) -> Result<Vec<String>,
     let metadata: serde_json::Value = serde_json::from_slice(&fs::read(metadata_path).map_err(|e| e.to_string())?)
         .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
     let loader = metadata["loader"].as_str().ok_or("Loader istanza mancante")?;
-    if !["fabric", "quilt"].contains(&loader) {
-        return Err("Il supporto shader automatico Iris è attualmente disponibile per istanze Fabric e Quilt".into());
+    if !["fabric", "quilt", "neoforge"].contains(&loader) {
+        return Err("Il supporto shader automatico Iris è disponibile per Fabric, Quilt e NeoForge".into());
     }
     let version = metadata["version"].as_str().ok_or("Versione istanza mancante")?;
     let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (shader support)")
