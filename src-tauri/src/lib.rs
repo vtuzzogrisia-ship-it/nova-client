@@ -627,6 +627,29 @@ fn install_java_runtime(major: u32) -> Result<String, String> {
     Ok(executable.to_string_lossy().to_string())
 }
 
+
+#[tauri::command]
+fn list_game_instances() -> Result<Vec<serde_json::Value>, String> {
+    let root = minecraft_dir()?.join("nova-instances");
+    if !root.exists() { return Ok(Vec::new()); }
+    let mut result = Vec::new();
+    for entry in fs::read_dir(root).map_err(|e| e.to_string())? {
+        let path = entry.map_err(|e| e.to_string())?.path();
+        let metadata_path = path.join("nova-instance.json");
+        if !metadata_path.is_file() { continue; }
+        let metadata: serde_json::Value = serde_json::from_slice(&fs::read(metadata_path).map_err(|e| e.to_string())?)
+            .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+        result.push(serde_json::json!({
+            "name": metadata["name"],
+            "version": metadata["version"],
+            "loader": metadata["loader"],
+            "path": path.to_string_lossy().to_string()
+        }));
+    }
+    result.sort_by(|a,b| a["name"].as_str().unwrap_or("").cmp(b["name"].as_str().unwrap_or("")));
+    Ok(result)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -646,7 +669,8 @@ pub fn run() {
             activate_instance_pack,
             install_game_profile,
             launch_offline_profile,
-            install_java_runtime
+            install_java_runtime,
+            list_game_instances
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
