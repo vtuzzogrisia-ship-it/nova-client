@@ -761,6 +761,11 @@ fn restore_game_instance_backup(instance_path: String, backup_path: String) -> R
         || !source.starts_with(&backups_root) || !source.join("nova-instance.json").is_file() {
         return Err("Percorso istanza o backup non valido".into());
     }
+    let destination_meta: serde_json::Value = serde_json::from_slice(&fs::read(destination.join("nova-instance.json")).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let source_meta: serde_json::Value = serde_json::from_slice(&fs::read(source.join("nova-instance.json")).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    if destination_meta["name"] != source_meta["name"] || destination_meta["version"] != source_meta["version"] || destination_meta["loader"] != source_meta["loader"] {
+        return Err("Il backup non appartiene alla stessa istanza o alla stessa configurazione".into());
+    }
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         let target = destination.join(folder);
         if target.exists() { fs::remove_dir_all(target).map_err(|e| e.to_string())?; }
