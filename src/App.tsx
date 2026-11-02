@@ -149,7 +149,7 @@ function LauncherTools({ram}:{ram:number}) {
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
-  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);setInstalledVersionId("");localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const loadPacks=async(kind=packKind)=>{
@@ -171,7 +171,7 @@ function LauncherTools({ram}:{ram:number}) {
    </div>
    <div className="installed-list"><strong>Istanze indipendenti</strong>
     <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>{setLoader(e.target.value);setInstalledVersionId("");}}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
-    <label className="settings-field">Istanza attiva<select value={instancePath} onChange={e=>{setInstancePath(e.target.value);localStorage.setItem("nova.activeInstance",e.target.value);}}><option value="">Seleziona istanza…</option>{instances.map(item=><option key={item.path} value={item.path}>{item.name} · {item.version} · {item.loader}</option>)}</select></label>
+    <label className="settings-field">Istanza attiva<select value={instancePath} onChange={e=>{setInstancePath(e.target.value);setInstalledVersionId("");localStorage.setItem("nova.activeInstance",e.target.value);}}><option value="">Seleziona istanza…</option>{instances.map(item=><option key={item.path} value={item.path}>{item.name} · {item.version} · {item.loader}</option>)}</select></label>
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
