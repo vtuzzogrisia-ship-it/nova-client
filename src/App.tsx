@@ -135,7 +135,6 @@ function FriendsChat() {
  const [messages,setMessages]=useState<NovaDirectMessage[]>(()=>readLocal("nova.messages",[]));
  const [invites,setInvites]=useState<NovaInvite[]>(()=>readLocal("nova.serverInvites",[]));
  const [selectedId,setSelectedId]=useState("");
- const [friendName,setFriendName]=useState("");
  const [friendHost,setFriendHost]=useState("");
  const [friendPort,setFriendPort]=useState(String(NOVA_SOCIAL_PORT));
  const [draft,setDraft]=useState("");
@@ -200,8 +199,8 @@ function FriendsChat() {
    const me=ensureIdentity();const host=friendHost.trim();const port=Number(friendPort);
    if(!host||host.length>255||!Number.isInteger(port)||port<1||port>65535)throw new Error("Inserisci l'indirizzo IP/host e una porta valida.");
    const packet:NovaSocialPacket={kind:"friend_request",senderId:me.id,senderName:me.name,senderHost:me.host,senderPort:NOVA_SOCIAL_PORT,createdAt:Date.now()};
-   await sendPacket(host,port,packet);setStatus("Richiesta inviata a "+(friendName.trim()||host)+". L'amico deve accettarla.");
-   setFriendName("");setFriendHost("");setShowAdd(false);
+   await sendPacket(host,port,packet);setStatus("Richiesta inviata a "+host+". L'amico deve accettarla.");
+   setFriendHost("");setShowAdd(false);
   }catch(error){setStatus(String(error));}finally{setBusy(false);}
  };
  const acceptRequest=async(request:NovaFriendRequest)=>{
@@ -244,19 +243,19 @@ function FriendsChat() {
  const visibleMessages=messages.filter(item=>selected&&item.friendId===selected.id);
  return <><div className="page-title"><div className="eyebrow">NOVA DIRECT</div><h1>Amici e <em>chat</em></h1><p>Richieste amicizia, messaggi diretti e inviti ai server Minecraft.</p></div>
   <section className="social-setup">
-   <div className="social-identity"><div><strong>Il tuo profilo NOVA</strong><small>Nome e indirizzo usati dagli amici per contattarti</small></div><div className="social-identity-fields"><input value={selfName} onChange={e=>setSelfName(e.target.value)} placeholder="Il tuo nome NOVA" maxLength={16}/><input value={selfHost} onChange={e=>setSelfHost(e.target.value)} placeholder="Il tuo IP LAN / hostname raggiungibile"/><button className="primary-btn small-btn" onClick={()=>{try{ensureIdentity();setStatus("Profilo salvato. Porta di ascolto: "+NOVA_SOCIAL_PORT);}catch(e){setStatus(String(e));}}}>Salva</button></div><small>Porta TCP: {NOVA_SOCIAL_PORT} · Su internet serve inoltrare questa porta nel router verso il tuo PC; su LAN usate l'IP locale.</small></div>
+   <div className="social-identity"><div><strong>Il tuo profilo NOVA</strong><small>Nome e indirizzo usati dagli amici per contattarti</small></div><div className="social-identity-fields"><input value={selfName} onChange={e=>setSelfName(e.target.value)} placeholder="Il tuo nome NOVA" maxLength={16}/><input value={selfHost} onChange={e=>setSelfHost(e.target.value)} placeholder="Il tuo IP LAN / hostname raggiungibile"/><button className="text-btn" onClick={()=>void invoke<string>("detect_local_network_address").then(setSelfHost).catch(error=>setStatus(String(error)))}>Rileva IP LAN</button><button className="primary-btn small-btn" onClick={()=>{try{ensureIdentity();setStatus("Profilo salvato. Porta di ascolto: "+NOVA_SOCIAL_PORT);}catch(e){setStatus(String(e));}}}>Salva</button></div><small>Porta TCP: {NOVA_SOCIAL_PORT} · Su internet serve inoltrare questa porta nel router verso il tuo PC; su LAN usate l'IP locale.</small></div>
    <div className="social-status"><span className="social-live-dot"/>{status}</div>
   </section>
   <div className="social-grid">
    <section className="social-card social-friends"><div className="social-card-head"><strong>Amici</strong><button className="text-btn" onClick={()=>setShowAdd(v=>!v)}><UserPlus size={14}/> Aggiungi</button></div>
-    {showAdd&&<div className="friend-add"><input value={friendName} onChange={e=>setFriendName(e.target.value)} placeholder="Nome amico (facoltativo)"/><input value={friendHost} onChange={e=>setFriendHost(e.target.value)} placeholder="IP o hostname dell'amico"/><input value={friendPort} onChange={e=>setFriendPort(e.target.value)} inputMode="numeric" placeholder="Porta"/><button className="primary-btn" disabled={busy} onClick={()=>void sendRequest()}>Invia richiesta</button></div>}
+    {showAdd&&<div className="friend-add"><input value={friendHost} onChange={e=>setFriendHost(e.target.value)} placeholder="IP o hostname dell'amico"/><input value={friendPort} onChange={e=>setFriendPort(e.target.value)} inputMode="numeric" placeholder="Porta"/><button className="primary-btn" disabled={busy} onClick={()=>void sendRequest()}>Invia richiesta</button></div>}
     {requests.length>0&&<div className="friend-requests"><strong>Richieste ricevute ({requests.length})</strong>{requests.map(req=><div className="friend-list-row" key={req.senderId}><span><b>{req.senderName}</b><small>{req.senderHost}:{req.senderPort}</small></span><button className="text-btn" disabled={busy} onClick={()=>void acceptRequest(req)}>Accetta</button></div>)}</div>}
     {friends.length===0?<div className="social-empty"><Users size={25}/><p>Ancora nessun amico.</p><small>Aggiungi un amico usando il suo IP e la porta NOVA Direct.</small></div>:friends.map(friend=><button className={selected?.id===friend.id?"friend-list-row selected":"friend-list-row"} key={friend.id} onClick={()=>setSelectedId(friend.id)}><span><b>{friend.name}</b><small>{friend.host}:{friend.port}</small></span><MessageCircle size={15}/></button>)}
    </section>
    <section className="social-card social-chat">
     <div className="social-card-head"><strong>{selected?selected.name:"Chat"}</strong>{selected&&<span className="social-subtle">{selected.host}:{selected.port}</span>}</div>
     <div className="chat-history">{!selected?<div className="social-empty"><MessageCircle size={24}/><p>Seleziona un amico per iniziare.</p></div>:visibleMessages.length===0?<div className="social-empty"><MessageCircle size={24}/><p>Nessun messaggio.</p><small>La chat è diretta tra i due PC.</small></div>:visibleMessages.map(message=><div className={message.outgoing?"chat-message outgoing":"chat-message"} key={message.id}><small>{message.outgoing?"Tu":message.senderName} · {new Date(message.createdAt).toLocaleString()}</small><p>{message.text}</p></div>)}</div>
-    <div className="chat-compose"><input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void sendMessage();}} placeholder={selected?"Scrivi un messaggio…":"Aggiungi un amico"} disabled={!selected||busy}/><button className="primary-btn" disabled={!selected||!draft.trim()||busy} onClick={()=>void sendMessage()}><Send size={15}/> Invia</button></div>
+    <div className="chat-compose"><input maxLength={2000} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void sendMessage();}} placeholder={selected?"Scrivi un messaggio…":"Aggiungi un amico"} disabled={!selected||busy}/><button className="primary-btn" disabled={!selected||!draft.trim()||busy} onClick={()=>void sendMessage()}><Send size={15}/> Invia</button></div>
     {selected&&<div className="friend-invite-form"><div className="social-card-head"><strong>Invita al server</strong><Server size={15}/></div><input value={serverName} onChange={e=>setServerName(e.target.value)} placeholder="Nome server"/><input value={serverAddress} onChange={e=>setServerAddress(e.target.value)} placeholder="play.example.net:25565"/><button className="text-btn" disabled={busy||!serverAddress.trim()} onClick={()=>void sendInvite()}>Invia invito server</button></div>}
    </section>
   </div>
