@@ -21,3 +21,12 @@
 .settings-field{display:flex;flex-direction:column;gap:8px;color:#a7a5ba;font-size:11px;letter-spacing:.06em}
 .settings-field select{min-width:130px;padding:11px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.1);background:#171725;color:#f5f3ff}
 @media(max-width:700px){.installed-row{align-items:flex-start;flex-direction:column}.library-filters{flex-wrap:wrap}.settings-field{width:100%}}
+
+
+/* Live Minecraft server status */
+.server-row-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.server-row-actions .text-btn{border:1px solid rgba(148,130,255,.28);border-radius:9px;padding:7px 11px;background:rgba(130,105,255,.08);color:#c9bdff;cursor:pointer;font:inherit;font-size:12px}
+.server-row-actions .text-btn:disabled{opacity:.55;cursor:wait}
+.server-good{color:#8fe0ad!important;line-height:1.5}
+.server-error{color:#f0a3a3!important;line-height:1.5}
+@media(max-width:700px){.server-row-actions{width:100%}}
