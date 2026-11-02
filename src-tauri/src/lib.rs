@@ -331,11 +331,39 @@ fn collect_java_binaries(root: &std::path::Path, depth: usize, output: &mut Vec<
 
 fn java_candidates() -> Vec<String> {
     let mut values = Vec::new();
+    let java_name = if cfg!(windows) { "java.exe" } else { "java" };
+
     if let Ok(value) = env::var("JAVA_HOME") {
-        values.push(PathBuf::from(value).join(if cfg!(windows) { "bin/java.exe" } else { "bin/java" }).to_string_lossy().to_string());
+        values.push(PathBuf::from(value).join("bin").join(java_name).to_string_lossy().to_string());
     }
-    values.push(if cfg!(windows) { "java.exe".into() } else { "java".into() });
-    if let Ok(root) = minecraft_dir() { collect_java_binaries(&root.join("nova-runtimes"), 0, &mut values); }
+
+    // Resolve PATH entries to absolute executable paths. Keeping the literal
+    // command "java" here breaks the later is_file() validation.
+    if let Some(path_value) = env::var_os("PATH") {
+        for directory in env::split_paths(&path_value) {
+            let candidate = directory.join(java_name);
+            if candidate.is_file() {
+                values.push(candidate.to_string_lossy().to_string());
+            }
+        }
+    }
+
+    if let Ok(root) = minecraft_dir() {
+        // NOVA-managed runtimes and runtimes downloaded by the official launcher.
+        for runtime_folder in ["nova-runtimes", "runtime"] {
+            collect_java_binaries(&root.join(runtime_folder), 0, &mut values);
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    for variable in ["ProgramFiles", "ProgramFiles(x86)"] {
+        if let Some(program_files) = env::var_os(variable) {
+            collect_java_binaries(&PathBuf::from(program_files).join("Minecraft Launcher").join("runtime"), 0, &mut values);
+        }
+    }
+
+    values.sort();
+    values.dedup();
     values
 }
 
