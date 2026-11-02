@@ -528,7 +528,7 @@ fn launch_offline_profile(version_id: String, instance_path: String, username: S
 
 
 #[tauri::command]
-fn activate_instance_pack(instance_path: String, kind: String, filename: String) -> Result<(), String> {
+fn activate_instance_pack(instance_path: String, kind: String, filename: String, enabled: bool) -> Result<(), String> {
     if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
     if filename.is_empty() || filename.contains('/') || filename.contains('\\') || !filename.to_lowercase().ends_with(".zip") {
         return Err("Nome pacchetto non valido".into());
@@ -544,13 +544,14 @@ fn activate_instance_pack(instance_path: String, kind: String, filename: String)
         let mut packs: Vec<String> = lines.iter().find_map(|line| line.strip_prefix("resourcePacks:"))
             .and_then(|value| serde_json::from_str(value).ok()).unwrap_or_else(|| vec!["vanilla".to_string()]);
         let pack_id = format!("file/{filename}");
-        if !packs.contains(&pack_id) { packs.push(pack_id); }
+        if enabled { if !packs.contains(&pack_id) { packs.push(pack_id); } } else { packs.retain(|item| item != &pack_id); }
         let serialized = serde_json::to_string(&packs).map_err(|e| e.to_string())?;
         lines.retain(|line| !line.starts_with("resourcePacks:"));
         lines.push(format!("resourcePacks:{serialized}"));
     } else {
-        lines.retain(|line| !line.starts_with("shaderPack:"));
-        lines.push(format!("shaderPack:{filename}"));
+        let current = lines.iter().find_map(|line| line.strip_prefix("shaderPack:")).unwrap_or("");
+        if enabled || current == filename { lines.retain(|line| !line.starts_with("shaderPack:")); }
+        if enabled { lines.push(format!("shaderPack:{filename}")); }
     }
     fs::write(options_path, lines.join("\n") + "\n").map_err(|e| e.to_string())
 }
