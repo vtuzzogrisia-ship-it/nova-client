@@ -84,7 +84,7 @@ fn install_modrinth_recursive(
 }
 
 #[tauri::command]
-fn install_modrinth_project(project_id: String, game_version: String, loader: String) -> Result<Vec<String>, String> {
+fn install_modrinth_project(project_id: String, game_version: String, loader: String, instance_path: Option<String>) -> Result<Vec<String>, String> {
     if !project_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
         return Err("ID progetto non valido".into());
     }
@@ -92,7 +92,11 @@ fn install_modrinth_project(project_id: String, game_version: String, loader: St
         return Err("Mod loader non supportato".into());
     }
     let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (mod manager)").build().map_err(|e| e.to_string())?;
-    let dir = minecraft_dir()?.join("mods");
+    let dir = if let Some(path) = instance_path {
+        let root = PathBuf::from(path);
+        if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+        root.join("mods")
+    } else { minecraft_dir()?.join("mods") };
     let mut visited = std::collections::HashSet::new();
     let mut installed = Vec::new();
     install_modrinth_recursive(&client, &project_id, &game_version, &loader, &dir, &mut visited, &mut installed)?;
