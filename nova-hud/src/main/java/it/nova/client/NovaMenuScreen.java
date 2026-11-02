@@ -15,19 +15,19 @@ public final class NovaMenuScreen extends Screen {
         int left = this.width / 2 - 105;
         int top = this.height / 2 - 82;
         addDrawableChild(ButtonWidget.builder(label("FPS", NovaHud.showFps), button -> {
-            NovaHud.showFps = !NovaHud.showFps;
+            NovaHud.setShowFps(!NovaHud.showFps);
             button.setMessage(label("FPS", NovaHud.showFps));
         }).dimensions(left, top, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(label("CPS", NovaHud.showCps), button -> {
-            NovaHud.showCps = !NovaHud.showCps;
+            NovaHud.setShowCps(!NovaHud.showCps);
             button.setMessage(label("CPS", NovaHud.showCps));
         }).dimensions(left, top + 25, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(label("Keystrokes", NovaHud.showKeys), button -> {
-            NovaHud.showKeys = !NovaHud.showKeys;
+            NovaHud.setShowKeys(!NovaHud.showKeys);
             button.setMessage(label("Keystrokes", NovaHud.showKeys));
         }).dimensions(left, top + 50, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(label("Coordinate", NovaHud.showCoordinates), button -> {
-            NovaHud.showCoordinates = !NovaHud.showCoordinates;
+            NovaHud.setShowCoordinates(!NovaHud.showCoordinates);
             button.setMessage(label("Coordinate", NovaHud.showCoordinates));
         }).dimensions(left, top + 75, 210, 20).build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Chiudi  ·  ESC"), button -> close())
