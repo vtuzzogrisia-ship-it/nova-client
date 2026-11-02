@@ -1,4 +1,4 @@
-name: Build NOVA CLIENT
+name: Build NOVA CLIENT for Windows
 
 on:
   workflow_dispatch:
@@ -11,65 +11,63 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  desktop:
+  windows:
+    name: Windows x64 installers
+    runs-on: windows-latest
     permissions:
       contents: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: windows-latest
-            os: windows
-          - platform: macos-latest
-            os: macos
-          - platform: ubuntu-22.04
-            os: linux
-    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.11.1'
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev patchelf libayatana-appindicator3-dev
-      - run: npm install
-      - name: Generate desktop bundle icons
+          gradle-version: "8.11.1"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Generate Windows bundle icons
         run: node scripts/generate-icons.mjs
-      - run: npm run tauri -- build
-      - name: Upload Windows installer (EXE)
-        if: matrix.os == 'windows'
+
+      - name: Build NOVA CLIENT (Windows x64)
+        run: npm run tauri -- build --target x86_64-pc-windows-msvc
+
+      - name: Upload Windows EXE installer
         uses: actions/upload-artifact@v4
         with:
-          name: NOVA-CLIENT-Windows-EXE
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: NOVA-CLIENT-Windows-x64-EXE
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
           if-no-files-found: error
-      - name: Upload Windows installer (MSI)
-        if: matrix.os == 'windows'
+          retention-days: 30
+
+      - name: Upload Windows MSI installer
         uses: actions/upload-artifact@v4
         with:
-          name: NOVA-CLIENT-Windows-MSI
-          path: src-tauri/target/release/bundle/msi/*.msi
+          name: NOVA-CLIENT-Windows-x64-MSI
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
           if-no-files-found: error
-      - name: Upload macOS and Linux installers
-        if: matrix.os != 'windows'
-        uses: actions/upload-artifact@v4
-        with:
-          name: nova-client-${{ matrix.os }}
-          path: src-tauri/target/release/bundle/**
-          if-no-files-found: error
-      - name: Publish draft release assets
+          retention-days: 30
+
+      - name: Publish draft Windows release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           draft: true
           prerelease: true
-          files: src-tauri/target/release/bundle/**/*
+          files: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
