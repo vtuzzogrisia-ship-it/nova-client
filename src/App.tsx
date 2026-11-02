@@ -131,6 +131,8 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const [instances,setInstances]=useState<GameInstanceEntry[]>([]);
  const [packs,setPacks]=useState<string[]>([]);
  const [packKind,setPackKind]=useState("resourcepacks");
+ const [backups,setBackups]=useState<string[]>([]);
+ const [selectedBackup,setSelectedBackup]=useState("");
  const importPack=async(file?:File)=>{if(!file||!instancePath)return;setBusy(true);setMessage("");try{const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Lettura file non riuscita"));reader.readAsDataURL(file);});const filename=await invoke<string>("import_instance_pack_data",{instancePath,kind:packKind,filename:file.name,dataBase64:data});setMessage("Pacchetto importato: "+filename);await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const refresh=async()=>{
   setBusy(true);setMessage("");
@@ -150,7 +152,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
-  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setInstalledVersionId(await invoke<string|null>("get_instance_profile_id",{instancePath:path})||"");setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setInstalledVersionId(await invoke<string|null>("get_instance_profile_id",{instancePath:path})||"");await loadBackups(path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const loadPacks=async(kind=packKind)=>{
@@ -158,6 +160,9 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
   setPackKind(kind);
   try{setPacks(await invoke<string[]>("list_instance_packs",{instancePath,kind}));}catch(e){setMessage(String(e));}
  };
+ const loadBackups=async(path=instancePath)=>{if(!path)return;try{const found=await invoke<string[]>("list_instance_backups",{instancePath:path});setBackups(found);setSelectedBackup(found[0]||"");}catch(e){setMessage(String(e));}};
+ const createBackup=async()=>{if(!instancePath)return;setBusy(true);try{const path=await invoke<string>("backup_game_instance",{instancePath});setMessage("Backup creato: "+path);await loadBackups();}catch(e){setMessage(String(e));}finally{setBusy(false);}};
+ const restoreBackup=async()=>{if(!instancePath||!selectedBackup)return;if(!window.confirm("Ripristinare questo backup? I file attuali di mod, pack, configurazione e salvataggi verranno sostituiti."))return;setBusy(true);try{await invoke("restore_game_instance_backup",{instancePath,backupPath:selectedBackup});setMessage("Backup ripristinato.");await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  return <>
   <div className="page-title"><div className="eyebrow">MINECRAFT RUNTIME</div><h1>Launcher <em>NOVA</em></h1><p>Rilevamento Java, versioni ufficiali e cartelle istanza isolate. Il download iniziale prepara i metadati e il client jar verificato.</p></div>
   <section className="library-panel">
@@ -172,13 +177,17 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
    </div>
    <div className="installed-list"><strong>Istanze indipendenti</strong>
     <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>{setLoader(e.target.value);setInstalledVersionId("");}}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
-    <label className="settings-field">Istanza attiva<select value={instancePath} onChange={e=>{const path=e.target.value;setInstancePath(path);setInstalledVersionId("");localStorage.setItem("nova.activeInstance",path);const current=instances.find(item=>item.path===path);if(current){setSelected(current.version);setLoader(current.loader);}if(path)void invoke<string|null>("get_instance_profile_id",{instancePath:path}).then(id=>setInstalledVersionId(id||"")).catch(err=>setMessage(String(err)));}}><option value="">Seleziona istanza…</option>{instances.map(item=><option key={item.path} value={item.path}>{item.name} · {item.version} · {item.loader}</option>)}</select></label>
+    <label className="settings-field">Istanza attiva<select value={instancePath} onChange={e=>{const path=e.target.value;setInstancePath(path);setInstalledVersionId("");localStorage.setItem("nova.activeInstance",path);const current=instances.find(item=>item.path===path);if(current){setSelected(current.version);setLoader(current.loader);}if(path){void invoke<string|null>("get_instance_profile_id",{instancePath:path}).then(id=>setInstalledVersionId(id||"")).catch(err=>setMessage(String(err)));void loadBackups(path);}}}><option value="">Seleziona istanza…</option>{instances.map(item=><option key={item.path} value={item.path}>{item.name} · {item.version} · {item.loader}</option>)}</select></label>
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><div className="installed-row" key={pack}><span>{pack}</span><div><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:true}).then(()=>setMessage("Pacchetto attivato: "+pack)).catch(e=>setMessage(String(e)))}>Attiva</button><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:false}).then(()=>setMessage("Pacchetto disattivato: "+pack)).catch(e=>setMessage(String(e)))}>Disattiva</button></div></div>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
+    <div className="installed-list"><strong>Backup e ripristino istanza</strong>
+     <div className="catalog-actions"><button className="text-btn" disabled={!instancePath||busy} onClick={()=>void createBackup()}>Crea backup</button><button className="text-btn" disabled={!instancePath} onClick={()=>void loadBackups()}>Aggiorna elenco</button></div>
+     <div className="library-filters"><select value={selectedBackup} onChange={e=>setSelectedBackup(e.target.value)}><option value="">Nessun backup disponibile</option>{backups.map(path=><option key={path} value={path}>{path.split(/[\\/]/).pop()}</option>)}</select><button className="text-btn" disabled={!selectedBackup||busy} onClick={()=>void restoreBackup()}>Ripristina backup</button></div>
+    </div>
     <p>Ogni istanza ha directory separate. Le istanze Fabric ricevono Fabric API, Iris e Sodium; il modulo HUD NOVA (FPS, CPS, WASD, coordinate e menu Right Shift) viene incluso per Minecraft 1.21.4. Per altre versioni o loader il HUD NOVA non è ancora disponibile.</p>
    </div>
    {message&&<div className="library-message">{message}</div>}
