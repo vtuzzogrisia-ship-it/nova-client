@@ -341,6 +341,14 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
     }
+    if loader == "fabric" {
+        let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0")
+            .build().map_err(|e| e.to_string())?;
+        let mut visited = std::collections::HashSet::new();
+        let mut installed = Vec::new();
+        install_modrinth_recursive(&client, "P7dR8mSH", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
+            .map_err(|e| format!("Installazione Fabric API necessaria per NOVA HUD non riuscita: {e}"))?;
+    }
     if ["fabric", "quilt"].contains(&loader.as_str()) {
         use base64::Engine;
         let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
