@@ -143,7 +143,7 @@ function LauncherTools({ram}:{ram:number}) {
  const installJava=async(major:number)=>{setBusy(true);setMessage("Download Java "+major+" in corso…");try{const path=await invoke<string>("install_java_runtime",{major});setJavaExecutable("auto");setJava(current=>[...current.filter(x=>x.executable!==path),{available:true,executable:path,version:"Temurin Java "+major,major}]);setMessage("Java "+major+" installato: "+path);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const install=async()=>{
   setBusy(true);setMessage("Download di client, librerie, asset e loader in corso…");
-  try{const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
+  try{const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null,javaExecutable:javaExecutable==="auto"?java.find(x=>x.available)?.executable||null:javaExecutable});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
