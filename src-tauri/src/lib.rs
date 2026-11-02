@@ -663,6 +663,9 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
             .find(|runtime| runtime.available && runtime.major == Some(required_java))
             .and_then(|runtime| runtime.executable)
     };
+    if ["forge", "neoforge"].contains(&loader.as_str()) && selected_java.is_none() {
+        return Err(format!("Per installare {loader} per Minecraft {game_version} serve Java {required_java}. Installa quel runtime e riprova."));
+    }
     if let Some(executable) = selected_java {
         if let Some(bin_dir) = PathBuf::from(executable).parent() {
             let mut paths = vec![bin_dir.to_path_buf()];
