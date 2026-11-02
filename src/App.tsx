@@ -99,7 +99,7 @@ function App() {
         {page === "launcher" && <LauncherTools ram={ram} version={version}/>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
-        {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); toast(`Profilo "${profile.name}" applicato alla configurazione rapida.`); setPage("home"); }}/>}
+        {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); localStorage.setItem("nova.preferredLoader",profile.loader); localStorage.removeItem("nova.activeInstance"); toast(`Profilo "${profile.name}" applicato: versione, loader e RAM. Crea o seleziona la relativa istanza nel Launcher.`); setPage("home"); }}/>}
         {page === "servers" && <ServerManager/>}
         {page === "settings" && <SettingsPage ram={ram} setRam={setRam} version={version} setVersion={setVersion}/>}
       </div>
@@ -125,7 +125,8 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const [installedVersionId,setInstalledVersionId]=useState("");
  const [username,setUsername]=useState("Player");
  const [instanceName,setInstanceName]=useState("NOVA");
- const [loader,setLoader]=useState("fabric");
+ const [loader,setLoader]=useState(()=>localStorage.getItem("nova.preferredLoader")||"fabric");
+ useEffect(()=>{localStorage.setItem("nova.preferredLoader",loader);},[loader]);
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const [instancePath,setInstancePath]=useState("");
@@ -259,7 +260,7 @@ function ProfileManager({defaultVersion,defaultRam,onActivate}:{defaultVersion:s
  return <><div className="page-title"><div className="eyebrow">GAME CONFIGURATIONS</div><h1>I tuoi <em>profili</em></h1><p>Crea configurazioni per versione, mod loader e memoria. Usa un profilo per applicare versione e RAM alla configurazione rapida.</p></div>
  <section className="library-panel"><div className="library-filters"><input value={name} onChange={e=>setName(e.target.value)} placeholder="Nome del profilo"/><select value={profileVersion} onChange={e=>setProfileVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="fabric">Fabric</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option><option value="quilt">Quilt</option><option value="vanilla">Vanilla</option></select><select value={profileRam} onChange={e=>setProfileRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select><button className="primary-btn" onClick={add}>Crea profilo</button></div>
  {profiles.length===0?<div className="library-message">Nessun profilo creato. Crea il primo usando i campi qui sopra.</div>:<div className="installed-list">{profiles.map(profile=><div className="installed-row" key={profile.id}><span><strong>{profile.name}</strong><small> Minecraft {profile.version} · {profile.loader} · {profile.ram} GB RAM</small></span><div className="catalog-actions"><button className="text-btn" onClick={()=>onActivate(profile)}>Usa profilo</button><button className="text-btn" onClick={()=>setProfiles(items=>items.filter(x=>x.id!==profile.id))}>Elimina</button></div></div>)}</div>}
- <div className="mod-panel-note"><ShieldCheck size={14}/> Usa profilo applica versione e RAM alla configurazione rapida; il loader resta un dato del preset finché non sarà disponibile il launcher Minecraft. I profili non creano ancora directory di gioco separate.</div></section></>;
+ <div className="mod-panel-note"><ShieldCheck size={14}/> Usa profilo applica versione, loader e RAM alla configurazione rapida. Nella sezione Launcher crea o seleziona un'istanza con la stessa versione e lo stesso loader.</div></section></>;
 }
 type NovaServer = { id:string; name:string; address:string };
 type MinecraftServerStatus = { online:boolean; latencyMs:number; version:string; playersOnline:number; playersMax:number; description:string };
