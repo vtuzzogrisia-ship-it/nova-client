@@ -114,6 +114,7 @@ function App() {
 
 type JavaRuntime = {available:boolean; executable?:string; version?:string; major?:number; error?:string};
 type MinecraftVersionEntry = {id:string;type:string;url:string};
+type GameInstanceEntry = {name:string;version:string;loader:string;path:string};
 function LauncherTools({ram}:{ram:number}) {
  const [java,setJava]=useState<JavaRuntime[]>([]);
  const [javaExecutable,setJavaExecutable]=useState("auto");
@@ -126,14 +127,15 @@ function LauncherTools({ram}:{ram:number}) {
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const [instancePath,setInstancePath]=useState("");
+ const [instances,setInstances]=useState<GameInstanceEntry[]>([]);
  const [packs,setPacks]=useState<string[]>([]);
  const [packKind,setPackKind]=useState("resourcepacks");
  const importPack=async(file?:File)=>{if(!file||!instancePath)return;setBusy(true);setMessage("");try{const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Lettura file non riuscita"));reader.readAsDataURL(file);});const filename=await invoke<string>("import_instance_pack_data",{instancePath,kind:packKind,filename:file.name,dataBase64:data});setMessage("Pacchetto importato: "+filename);await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const refresh=async()=>{
   setBusy(true);setMessage("");
   try {
-   const [runtime,manifest]=await Promise.all([invoke<JavaRuntime[]>("detect_java_runtimes"),invoke<any>("list_minecraft_versions")]);
-   setJava(runtime);const all=(manifest.versions||[]) as MinecraftVersionEntry[];setVersions(all);
+   const [runtime,manifest,instanceList]=await Promise.all([invoke<JavaRuntime[]>("detect_java_runtimes"),invoke<any>("list_minecraft_versions"),invoke<GameInstanceEntry[]>("list_game_instances")]);
+   setJava(runtime);setInstances(instanceList);const active=localStorage.getItem("nova.activeInstance");if(active&&instanceList.some(item=>item.path===active))setInstancePath(active);const all=(manifest.versions||[]) as MinecraftVersionEntry[];setVersions(all);
    if(all.some(v=>v.id==="1.21.4"))setSelected("1.21.4");
   } catch(e){setMessage(String(e));} finally{setBusy(false);}
  };
@@ -147,7 +149,7 @@ function LauncherTools({ram}:{ram:number}) {
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
-  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);}
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const loadPacks=async(kind=packKind)=>{
@@ -169,6 +171,7 @@ function LauncherTools({ram}:{ram:number}) {
    </div>
    <div className="installed-list"><strong>Istanze indipendenti</strong>
     <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>{setLoader(e.target.value);setInstalledVersionId("");}}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
+    <label className="settings-field">Istanza attiva<select value={instancePath} onChange={e=>{setInstancePath(e.target.value);localStorage.setItem("nova.activeInstance",e.target.value);}}><option value="">Seleziona istanza…</option>{instances.map(item=><option key={item.path} value={item.path}>{item.name} · {item.version} · {item.loader}</option>)}</select></label>
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
