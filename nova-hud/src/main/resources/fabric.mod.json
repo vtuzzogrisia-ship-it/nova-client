@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "nova_hud",
+  "version": "${version}",
+  "name": "NOVA HUD",
+  "description": "NOVA in-game HUD: FPS, CPS, keystrokes, coordinates and Right Shift menu.",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["it.nova.client.NovaHud"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.9",
+    "minecraft": "1.21.4",
+    "java": ">=21",
+    "fabric-api": ">=0.119.2"
+  }
+}
