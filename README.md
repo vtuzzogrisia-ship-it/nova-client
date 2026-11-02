@@ -6,7 +6,7 @@
 
 The repository currently contains the first Tauri 2 desktop-shell and React interface prototype. The downloadable desktop installer is being built through GitHub Actions.
 
-This is not yet a complete Lunar-equivalent launcher. Minecraft version installation, offline/local profile launching, managed game instances, dependency-aware mod installation, and a true in-game HUD/overlay still require implementation and testing. The server list now includes a Java Edition status ping with latency, version and player counts. Microsoft account login is intentionally excluded. Microsoft account login is intentionally excluded. Modrinth project downloads can now be installed into the default Minecraft mods folder from the desktop app. The desktop UI preview is not evidence that those systems are already working.
+This is not yet a complete Lunar-equivalent launcher. Minecraft version installation, offline/local profile launching, managed game instances, dependency-aware mod installation, and a true in-game HUD/overlay still require implementation and testing. The server list now includes a Java Edition status ping with latency, version and player counts. Microsoft account login is intentionally excluded. Modrinth project downloads can now be installed into the default Minecraft mods folder from the desktop app. The desktop UI preview is not evidence that those systems are already working.
 
 ## Development
 
