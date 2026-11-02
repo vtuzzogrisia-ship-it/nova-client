@@ -637,6 +637,15 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
         "neoforge" => Some(LoaderSpec::NeoForge { version: loader_version.map(LoaderVersion::Exact).unwrap_or(LoaderVersion::Latest) }),
         _ => return Err("Mod loader non supportato".into()),
     };
+    if let Some(path) = &instance_path {
+        let metadata_path = PathBuf::from(path).join("nova-instance.json");
+        if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+        let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+            .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+        if metadata["version"].as_str() != Some(game_version.as_str()) || metadata["loader"].as_str() != Some(loader.as_str()) {
+            return Err("Crea o seleziona un'istanza con la stessa versione Minecraft e lo stesso loader prima di installare.".into());
+        }
+    }
     let launcher = Launcher::new(minecraft_dir().map_err(|e| e.to_string())?);
     let _guard = INSTALL_JAVA_LOCK.lock().map_err(|_| "Blocco installazione Java non disponibile")?;
     let original_path = env::var_os("PATH");
