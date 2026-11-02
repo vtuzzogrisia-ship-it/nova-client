@@ -127,13 +127,19 @@ fn install_modrinth_project_blocking(project_id: String, game_version: String, l
     let mut manifest: serde_json::Value = if manifest_path.is_file() {
         serde_json::from_slice(&fs::read(&manifest_path).map_err(|e| e.to_string())?).unwrap_or_else(|_| serde_json::json!({}))
     } else { serde_json::json!({}) };
-    if let Some(old_filename) = manifest[project_id.as_str()].as_str() {
+    let old_filename = manifest[project_id.as_str()].as_str()
+        .or_else(|| manifest[project_id.as_str()]["file"].as_str())
+        .map(str::to_string);
+    if let Some(old_filename) = old_filename {
         if old_filename != latest_filename && old_filename.ends_with(".jar") {
             let old_path = dir.join(old_filename);
             if old_path.is_file() { fs::remove_file(old_path).map_err(|e| e.to_string())?; }
         }
     }
-    manifest[project_id.as_str()] = serde_json::json!(latest_filename);
+    manifest[project_id.as_str()] = serde_json::json!({
+        "file": latest_filename,
+        "versionId": latest["id"]
+    });
     fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     Ok(installed)
@@ -191,8 +197,9 @@ fn check_modrinth_mod_updates_blocking(instance_path: Option<String>, game_versi
     let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (mod updates)").build().map_err(|e| e.to_string())?;
     let mut updates = Vec::new();
     if let Some(mods) = manifest.as_object() {
-        for (project_id, current_file) in mods {
-            let current_file = current_file.as_str().unwrap_or("");
+        for (project_id, current_entry) in mods {
+            let current_file = current_entry.as_str().or_else(|| current_entry["file"].as_str()).unwrap_or("");
+            let current_version = current_entry["versionId"].as_str().unwrap_or("");
             let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{project_id}/version"))
                 .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
                 .send().map_err(|e| format!("Controllo aggiornamenti Modrinth fallito: {e}"))?
@@ -200,8 +207,9 @@ fn check_modrinth_mod_updates_blocking(instance_path: Option<String>, game_versi
             if let Some(latest) = versions.first() {
                 let latest_file = latest["files"].as_array().and_then(|files| files.iter().find(|f| f["primary"].as_bool() == Some(true)).or_else(|| files.first()))
                     .and_then(|f| f["filename"].as_str()).unwrap_or("");
-                if !latest_file.is_empty() && latest_file != current_file {
-                    updates.push(serde_json::json!({"projectId":project_id,"currentFile":current_file,"latestFile":latest_file,"versionId":latest["id"]}));
+                let latest_version = latest["id"].as_str().unwrap_or("");
+                if !latest_file.is_empty() && (latest_file != current_file || (!current_version.is_empty() && latest_version != current_version)) {
+                    updates.push(serde_json::json!({"projectId":project_id,"currentFile":current_file,"latestFile":latest_file,"versionId":latest_version}));
                 }
             }
         }
