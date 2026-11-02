@@ -138,7 +138,7 @@ fn ping_minecraft_server(address: String) -> Result<serde_json::Value, String> {
     // Handshake protocol status (protocol -1 asks the server to use its current protocol).
     let mut handshake = Vec::new();
     write_varint(0, &mut handshake);
-    write_varint(-1, &mut handshake);
+    write_varint(767, &mut handshake);
     write_mc_string(host, &mut handshake);
     handshake.extend_from_slice(&port.to_be_bytes());
     write_varint(1, &mut handshake);
