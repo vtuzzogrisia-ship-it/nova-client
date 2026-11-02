@@ -6,7 +6,7 @@
 
 The repository currently contains the first Tauri 2 desktop-shell and React interface prototype. The downloadable desktop installer is being built through GitHub Actions.
 
-This is not yet a complete Lunar-equivalent launcher. Minecraft version installation, offline/local profile launching, managed game instances, dependency-aware mod installation, and a true in-game HUD/overlay still require implementation and testing. Microsoft account login is intentionally excluded. Modrinth project downloads can now be installed into the default Minecraft mods folder from the desktop app. The desktop UI preview is not evidence that those systems are already working.
+This is not yet a complete Lunar-equivalent launcher. Minecraft version installation, offline/local profile launching, managed game instances, dependency-aware mod installation, and a true in-game HUD/overlay still require implementation and testing. The server list now includes a Java Edition status ping with latency, version and player counts. Microsoft account login is intentionally excluded. Microsoft account login is intentionally excluded. Modrinth project downloads can now be installed into the default Minecraft mods folder from the desktop app. The desktop UI preview is not evidence that those systems are already working.
 
 ## Development
 
@@ -15,8 +15,9 @@ Install dependencies with `npm install`, then run `npm run dev` for the Vite dev
 ## Product direction
 
 - Standalone desktop installer and launcher
-- Minecraft Java version installation, profiles and Microsoft authentication
+- Minecraft Java version installation, profiles and local/offline player profiles
 - Built-in mod/modpack manager (managed by NOVA; users do not install NOVA itself as a mod)
+- Multiplayer server status and latency tools
 - Performance options and client settings
 - Integrated in-game HUD and Right Shift mod menu
 - Resource packs, shaders, server tools and social features
