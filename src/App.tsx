@@ -95,7 +95,7 @@ function App() {
           <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
-        {page === "launcher" && <LauncherTools ram={ram}/>}
+        {page === "launcher" && <LauncherTools ram={ram} version={version}/>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); toast(`Profilo "${profile.name}" applicato alla configurazione rapida.`); setPage("home"); }}/>}
@@ -115,11 +115,12 @@ function App() {
 type JavaRuntime = {available:boolean; executable?:string; version?:string; major?:number; error?:string};
 type MinecraftVersionEntry = {id:string;type:string;url:string};
 type GameInstanceEntry = {name:string;version:string;loader:string;path:string};
-function LauncherTools({ram}:{ram:number}) {
+function LauncherTools({ram,version}:{ram:number;version:string}) {
  const [java,setJava]=useState<JavaRuntime[]>([]);
  const [javaExecutable,setJavaExecutable]=useState("auto");
  const [versions,setVersions]=useState<MinecraftVersionEntry[]>([]);
- const [selected,setSelected]=useState("1.21.4");
+ const [selected,setSelected]=useState(version);
+ useEffect(()=>{setSelected(version);},[version]);
  const [installedVersionId,setInstalledVersionId]=useState("");
  const [username,setUsername]=useState("Player");
  const [instanceName,setInstanceName]=useState("NOVA");
@@ -149,7 +150,7 @@ function LauncherTools({ram}:{ram:number}) {
  const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
-  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setInstalledVersionId(await invoke<string|null>("get_instance_profile_id",{instancePath:path})||"");setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
  const loadPacks=async(kind=packKind)=>{
@@ -162,7 +163,7 @@ function LauncherTools({ram}:{ram:number}) {
   <section className="library-panel">
    <div className="installed-list"><strong>Runtime Java rilevati</strong>
     {java.length===0?<p>Ricerca Java in corso…</p>:java.map((item,i)=><div className="installed-row" key={i}><span><strong>{item.available?item.version:"Java non trovato"}</strong><small>{item.executable||item.error}</small></span><span>{item.major?"Java "+item.major:""}</span></div>)}
-    <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button><button className="text-btn" onClick={()=>void installJava(8)} disabled={busy}>Installa Java 8</button><button className="text-btn" onClick={()=>void installJava(17)} disabled={busy}>Installa Java 17</button><button className="text-btn" onClick={()=>void installJava(21)} disabled={busy}>Installa Java 21</button></div>
+    <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button><button className="text-btn" onClick={()=>void installJava(8)} disabled={busy}>Installa Java 8</button><button className="text-btn" onClick={()=>void installJava(16)} disabled={busy}>Installa Java 16</button><button className="text-btn" onClick={()=>void installJava(17)} disabled={busy}>Installa Java 17</button><button className="text-btn" onClick={()=>void installJava(21)} disabled={busy}>Installa Java 21</button></div>
     <label className="settings-field">Runtime per l’avvio<select value={javaExecutable} onChange={e=>setJavaExecutable(e.target.value)}><option value="auto">Automatico (versione Minecraft)</option>{java.filter(x=>x.available&&x.executable).map(x=><option key={x.executable} value={x.executable}>{x.version} · {x.executable}</option>)}</select></label>
    </div>
    <div className="installed-list"><strong>Versioni Minecraft ufficiali</strong>
@@ -264,7 +265,7 @@ function SettingsPage({ram,setRam,version,setVersion}:{ram:number;setRam:(v:numb
  const clear=()=>{try{localStorage.removeItem("nova.mods");localStorage.removeItem("nova.profiles");localStorage.removeItem("nova.servers");localStorage.removeItem("nova.version");localStorage.removeItem("nova.ram");}catch{/* storage unavailable */}setConfirm(false);window.location.reload();};
  return <><div className="page-title"><div className="eyebrow">CLIENT PREFERENCES</div><h1>Imposta <em>NOVA</em></h1><p>Preferenze generali del launcher salvate su questo dispositivo.</p></div>
  <section className="library-panel"><div className="library-filters"><label className="settings-field">Versione predefinita<select value={version} onChange={e=>setVersion(e.target.value)}><option>1.21.4</option><option>1.21.1</option><option>1.20.1</option><option>1.19.4</option></select></label><label className="settings-field">RAM predefinita<select value={ram} onChange={e=>setRam(Number(e.target.value))}>{[2,4,6,8,12,16].map(n=><option key={n} value={n}>{n} GB</option>)}</select></label></div>
- <div className="mod-panel-note"><ShieldCheck size={14}/> Le preferenze di versione e RAM vengono salvate localmente. Non vengono ancora applicate a un processo Minecraft perché il launcher di gioco non è stato implementato.</div>
+ <div className="mod-panel-note"><ShieldCheck size={14}/> La RAM predefinita viene applicata al prossimo avvio di Minecraft. La versione predefinita viene usata come selezione iniziale nella sezione Launcher. Le istanze e i relativi file restano separati dai dati locali del pannello.</div>
  <div className="installed-list"><strong>Dati locali NOVA</strong><p>Puoi cancellare preferenze mod, profili, server, versione e RAM salvati su questo dispositivo. La chiave API CurseForge non viene salvata.</p>{confirm?<div className="catalog-actions"><button className="text-btn" onClick={clear}>Conferma cancellazione</button><button className="text-btn" onClick={()=>setConfirm(false)}>Annulla</button></div>:<button className="text-btn" onClick={()=>setConfirm(true)}>Cancella dati locali</button>}</div></section></>;
 }
 
