@@ -940,8 +940,7 @@ fn restore_game_instance_backup_blocking(instance_path: String, backup_path: Str
 }
 
 
-#[tauri::command]
-fn read_instance_log(instance_path: String) -> Result<String, String> {
+fn read_instance_log_blocking(instance_path: String) -> Result<String, String> {
     let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
     let instance = PathBuf::from(instance_path).canonicalize().map_err(|e| e.to_string())?;
     if !instance.starts_with(&instances_root) || !instance.join("nova-instance.json").is_file() {
@@ -1044,6 +1043,11 @@ async fn list_minecraft_versions() -> Result<serde_json::Value, String> {
 #[tauri::command]
 async fn install_vanilla_version(version_id: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || install_vanilla_version_blocking(version_id)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn read_instance_log(instance_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || read_instance_log_blocking(instance_path)).await.map_err(|e| e.to_string())?
 }
 
 fn run() {
