@@ -29,16 +29,11 @@
     "active": true,
     "targets": [
       "nsis",
-      "msi",
-      "dmg",
-      "app",
-      "deb",
-      "appimage"
+      "msi"
     ],
     "icon": [
       "icons/icon.png",
-      "icons/icon.ico",
-      "icons/icon.icns"
+      "icons/icon.ico"
     ],
     "category": "Game",
     "shortDescription": "A new home for Minecraft Java"
