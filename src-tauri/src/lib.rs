@@ -32,22 +32,17 @@ fn list_installed_mods(instance_path: Option<String>) -> Result<Vec<String>, Str
     Ok(files)
 }
 
-fn install_modrinth_recursive(
+fn install_modrinth_version(
     client: &reqwest::blocking::Client,
-    project_id: &str,
+    version: &serde_json::Value,
     game_version: &str,
     loader: &str,
     mods_dir: &std::path::Path,
     visited: &mut std::collections::HashSet<String>,
     installed: &mut Vec<String>,
 ) -> Result<(), String> {
-    if !visited.insert(project_id.to_string()) { return Ok(()); }
-    let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{}/version", project_id))
-        .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
-        .send().map_err(|e| format!("Modrinth non raggiungibile: {e}"))?
-        .error_for_status().map_err(|e| format!("Ricerca versioni fallita: {e}"))?
-        .json().map_err(|e| format!("Risposta Modrinth non valida: {e}"))?;
-    let version = versions.first().ok_or_else(|| format!("Nessuna versione compatibile trovata per la dipendenza {project_id}"))?;
+    let version_id = version["id"].as_str().unwrap_or("unknown");
+    if !visited.insert(format!("version:{version_id}")) { return Ok(()); }
     let files = version["files"].as_array().ok_or("Il progetto non contiene file scaricabili")?;
     let file = files.iter().find(|f| f["primary"].as_bool() == Some(true)).or_else(|| files.first()).ok_or("Nessun file disponibile")?;
     let filename = file["filename"].as_str().ok_or("Nome file mancante")?;
@@ -72,16 +67,34 @@ fn install_modrinth_recursive(
             if dependency["dependency_type"].as_str() != Some("required") { continue; }
             if let Some(required_version) = dependency["version_id"].as_str() {
                 let required: serde_json::Value = client.get(format!("https://api.modrinth.com/v2/version/{required_version}"))
-                    .send().map_err(|e| format!("Download metadati dipendenza fallito: {e}"))?
+                    .send().map_err(|e| format!("Metadati dipendenza non raggiungibili: {e}"))?
                     .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| e.to_string())?;
-                let required_project = required["project_id"].as_str().ok_or("ID progetto dipendenza mancante")?;
-                install_modrinth_recursive(client, required_project, game_version, loader, mods_dir, visited, installed)?;
+                install_modrinth_version(client, &required, game_version, loader, mods_dir, visited, installed)?;
             } else if let Some(required_project) = dependency["project_id"].as_str() {
                 install_modrinth_recursive(client, required_project, game_version, loader, mods_dir, visited, installed)?;
             }
         }
     }
     Ok(())
+}
+
+fn install_modrinth_recursive(
+    client: &reqwest::blocking::Client,
+    project_id: &str,
+    game_version: &str,
+    loader: &str,
+    mods_dir: &std::path::Path,
+    visited: &mut std::collections::HashSet<String>,
+    installed: &mut Vec<String>,
+) -> Result<(), String> {
+    if !visited.insert(format!("project:{project_id}")) { return Ok(()); }
+    let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{}/version", project_id))
+        .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
+        .send().map_err(|e| format!("Modrinth non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| format!("Ricerca versioni fallita: {e}"))?
+        .json().map_err(|e| format!("Risposta Modrinth non valida: {e}"))?;
+    let version = versions.first().ok_or_else(|| format!("Nessuna versione compatibile trovata per la dipendenza {project_id}"))?;
+    install_modrinth_version(client, version, game_version, loader, mods_dir, visited, installed)
 }
 
 #[tauri::command]
