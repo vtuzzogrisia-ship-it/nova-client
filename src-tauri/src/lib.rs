@@ -491,7 +491,7 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
         }
     }
     let install_result = launcher.install(InstallRequest {
-        minecraft_version: game_version,
+        minecraft_version: game_version.clone(),
         loader: loader_spec,
         java: JavaInstallPolicy::Never,
     });
