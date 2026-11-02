@@ -1,0 +1,8 @@
+{
+  "category.nova_hud": "NOVA Client",
+  "key.nova_hud.menu": "Open NOVA mod menu",
+  "key.nova_hud.fps": "Toggle FPS display",
+  "key.nova_hud.cps": "Toggle CPS counter",
+  "key.nova_hud.keystrokes": "Toggle keystrokes",
+  "key.nova_hud.coordinates": "Toggle coordinates"
+}
