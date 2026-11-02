@@ -3,12 +3,14 @@ package it.nova.client;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
-import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
+import net.fabricmc.fabric.api.client.rendering.v1.IdentifiedLayer;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.render.RenderTickCounter;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.util.Identifier;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
@@ -49,7 +51,11 @@ public final class NovaHud implements ClientModInitializer {
             while (keysKey.wasPressed()) showKeys = !showKeys;
             while (coordinatesKey.wasPressed()) showCoordinates = !showCoordinates;
         });
-        HudRenderCallback.EVENT.register(NovaHud::render);
+        HudLayerRegistrationCallback.EVENT.register(layers -> layers.attachLayerAfter(
+                IdentifiedLayer.EXPERIENCE_LEVEL,
+                Identifier.of("nova_hud", "main_hud"),
+                NovaHud::render
+        ));
     }
 
     private static KeyBinding registerToggle(String translationKey, int keyCode) {
