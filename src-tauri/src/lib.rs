@@ -411,19 +411,18 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
 
 
 #[tauri::command]
-fn install_modrinth_modpack(instance_path: String, source_path: String) -> Result<Vec<String>, String> {
+fn install_modrinth_modpack(instance_path: String, filename: String, data_base64: String) -> Result<Vec<String>, String> {
     use std::io::Read;
+    use base64::Engine;
     let root = PathBuf::from(instance_path);
     let metadata_path = root.join("nova-instance.json");
     if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
     let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
         .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
-    let source = PathBuf::from(source_path);
-    if !source.is_file() || source.extension().and_then(|v| v.to_str()) != Some("mrpack") {
-        return Err("Seleziona un modpack Modrinth .mrpack".into());
-    }
-    let file = fs::File::open(source).map_err(|e| e.to_string())?;
-    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Archivio modpack non valido: {e}"))?;
+    if !filename.to_lowercase().ends_with(".mrpack") { return Err("Seleziona un modpack Modrinth .mrpack".into()); }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64).map_err(|_| "Modpack non codificato correttamente")?;
+    if bytes.len() > 512 * 1024 * 1024 { return Err("Il modpack supera il limite di 512 MB".into()); }
+    let mut archive = zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| format!("Archivio modpack non valido: {e}"))?;
     let manifest: serde_json::Value = {
         let mut entry = archive.by_name("modrinth.index.json").map_err(|_| "Il file non contiene modrinth.index.json")?;
         let mut bytes = Vec::new();
