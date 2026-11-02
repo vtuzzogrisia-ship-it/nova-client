@@ -98,7 +98,7 @@ function App() {
           <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
-        {page === "launcher" && <LauncherTools ram={ram} version={version}/>}
+        <div style={{ display: page === "launcher" ? "block" : "none" }}><LauncherTools ram={ram} version={version}/></div>
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); localStorage.setItem("nova.preferredLoader",profile.loader); localStorage.removeItem("nova.activeInstance"); toast(`Profilo "${profile.name}" applicato: versione, loader e RAM. Crea o seleziona la relativa istanza nel Launcher.`); setPage("home"); }}/>}
@@ -288,6 +288,16 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const [backups,setBackups]=useState<string[]>([]);
  const [selectedBackup,setSelectedBackup]=useState("");
  const [gameLog,setGameLog]=useState("");
+ useEffect(()=>{
+  let unlisten:(()=>void)|undefined;
+  void listen<{pid:number;code?:number|null;success:boolean;error?:string;logTail?:string}>("nova-game-exited",({payload})=>{
+   setMessage(payload.success?"Minecraft si è chiuso normalmente.":"Minecraft si è chiuso con un errore"+(payload.code!==undefined&&payload.code!==null?" (codice "+payload.code+")":"")+".");
+   if(payload.error)setMessage(current=>current+" "+payload.error);
+   setGameLog(payload.logTail||"Il log non contiene dettagli aggiuntivi.");
+  }).then(fn=>{unlisten=fn;}).catch(error=>setMessage("Monitor Minecraft: "+String(error)));
+  return ()=>{unlisten?.();};
+ },[]);
+
  const importPack=async(file?:File)=>{if(!file||!instancePath)return;setBusy(true);setMessage("");try{const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Lettura file non riuscita"));reader.readAsDataURL(file);});const filename=await invoke<string>("import_instance_pack_data",{instancePath,kind:packKind,filename:file.name,dataBase64:data});setMessage("Pacchetto importato: "+filename);await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const refresh=async()=>{
   setBusy(true);setMessage("");
