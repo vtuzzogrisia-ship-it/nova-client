@@ -38,10 +38,10 @@ public final class NovaHud implements ClientModInitializer {
                 GLFW.GLFW_KEY_RIGHT_SHIFT,
                 "category.nova_hud"
         ));
-        fpsKey = registerToggle("key.nova_hud.fps", GLFW.GLFW_KEY_F);
-        cpsKey = registerToggle("key.nova_hud.cps", GLFW.GLFW_KEY_C);
-        keysKey = registerToggle("key.nova_hud.keystrokes", GLFW.GLFW_KEY_K);
-        coordinatesKey = registerToggle("key.nova_hud.coordinates", GLFW.GLFW_KEY_X);
+        fpsKey = registerToggle("key.nova_hud.fps", GLFW.GLFW_KEY_F6);
+        cpsKey = registerToggle("key.nova_hud.cps", GLFW.GLFW_KEY_F7);
+        keysKey = registerToggle("key.nova_hud.keystrokes", GLFW.GLFW_KEY_F8);
+        coordinatesKey = registerToggle("key.nova_hud.coordinates", GLFW.GLFW_KEY_F9);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (menuKey.wasPressed()) menuOpen = !menuOpen;
             while (fpsKey.wasPressed()) showFps = !showFps;
@@ -96,10 +96,10 @@ public final class NovaHud implements ClientModInitializer {
             context.fill(left, top, left + 210, top + 112, 0xE8171725);
             context.fill(left, top, left + 210, top + 22, 0xFF7654C8);
             context.drawTextWithShadow(client.textRenderer, "NOVA CLIENT  ·  MOD MENU", left + 8, top + 7, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[F] FPS: " + (showFps ? "ON" : "OFF"), left + 10, top + 34, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[C] CPS: " + (showCps ? "ON" : "OFF"), left + 10, top + 50, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[K] Keystrokes: " + (showKeys ? "ON" : "OFF"), left + 10, top + 66, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[X] Coordinate: " + (showCoordinates ? "ON" : "OFF"), left + 10, top + 82, 0xFFFFFFFF);
+            context.drawTextWithShadow(client.textRenderer, "[F6] FPS: " + (showFps ? "ON" : "OFF"), left + 10, top + 34, 0xFFFFFFFF);
+            context.drawTextWithShadow(client.textRenderer, "[F7] CPS: " + (showCps ? "ON" : "OFF"), left + 10, top + 50, 0xFFFFFFFF);
+            context.drawTextWithShadow(client.textRenderer, "[F8] Keystrokes: " + (showKeys ? "ON" : "OFF"), left + 10, top + 66, 0xFFFFFFFF);
+            context.drawTextWithShadow(client.textRenderer, "[F9] Coordinate: " + (showCoordinates ? "ON" : "OFF"), left + 10, top + 82, 0xFFFFFFFF);
             context.drawTextWithShadow(client.textRenderer, "Right Shift: chiudi menu", left + 10, top + 98, 0xFFB99BFF);
         }
 
