@@ -483,7 +483,8 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
     let _guard = INSTALL_JAVA_LOCK.lock().map_err(|_| "Blocco installazione Java non disponibile")?;
     let original_path = env::var_os("PATH");
     let version_parts = game_version.split('.').filter_map(|part| part.parse::<u32>().ok()).collect::<Vec<_>>();
-    let required_java = if version_parts.get(1) == Some(&17) { 16 }
+    let required_java = if version_parts.first().copied().unwrap_or(1) >= 26 { 25 }
+        else if version_parts.get(1) == Some(&17) { 16 }
         else if version_parts.get(1).copied().unwrap_or(0) >= 21
             || (version_parts.get(1) == Some(&20) && version_parts.get(2).copied().unwrap_or(0) >= 5) { 21 }
         else if version_parts.get(1).copied().unwrap_or(0) >= 18 { 17 }
@@ -535,15 +536,28 @@ fn launch_offline_profile(version_id: String, instance_path: String, username: S
     }
     if !(2..=32).contains(&ram_gb) { return Err("RAM non valida (2-32 GB)".into()); }
     let game_dir = PathBuf::from(&instance_path);
-    if !game_dir.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let metadata_path = game_dir.join("nova-instance.json");
+    if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+    if metadata["profileId"].as_str() != Some(version_id.as_str()) {
+        return Err("Il profilo selezionato non corrisponde a quello installato in questa istanza. Reinstalla il profilo o seleziona l'istanza corretta.".into());
+    }
     let root = minecraft_dir().map_err(|e| e.to_string())?;
     let launcher = Launcher::new(&root);
     let version = launcher.load_version(&version_id).map_err(|e| format!("Profilo non installato o incompleto: {e}"))?;
     let required_java = version.java_version.as_ref().map(|value| value.major_version as u32);
+    let runtimes = detect_java_runtimes();
     let java_path = if let Some(explicit) = java_executable {
+        let selected = runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(explicit.as_str()));
+        if let (Some(expected), Some(runtime)) = (required_java, selected) {
+            if runtime.major != Some(expected) {
+                return Err(format!("Questa versione richiede Java {expected}, ma il runtime selezionato è {}.", runtime.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
+            }
+        }
         PathBuf::from(explicit)
     } else {
-        detect_java_runtimes().into_iter()
+        runtimes.into_iter()
             .find(|runtime| runtime.available && (required_java.is_none() || runtime.major == required_java))
             .and_then(|runtime| runtime.executable.map(PathBuf::from))
             .ok_or_else(|| format!("Java {} non trovato. Installa il runtime richiesto dalla sezione Launcher.", required_java.map(|v| v.to_string()).unwrap_or_else(|| "compatibile".into())))?
@@ -623,7 +637,7 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
 #[tauri::command]
 fn install_java_runtime(major: u32) -> Result<String, String> {
     use std::io::Cursor;
-    if ![8, 16, 17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 8, 16, 17 e 21".into()); }
+    if ![8, 16, 17, 21, 25].contains(&major) { return Err("Sono disponibili i runtime Java 8, 16, 17, 21 e 25".into()); }
     let os = match env::consts::OS { "windows" => "windows", "macos" => "mac", "linux" => "linux", _ => return Err("Sistema operativo non supportato per il download Java".into()) };
     let arch = match env::consts::ARCH { "x86_64" => "x64", "aarch64" => "aarch64", _ => return Err("Architettura non supportata per il download Java".into()) };
     let destination = minecraft_dir()?.join("nova-runtimes").join(format!("temurin-{major}-{os}-{arch}"));
