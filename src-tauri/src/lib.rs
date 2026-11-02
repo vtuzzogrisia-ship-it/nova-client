@@ -350,8 +350,10 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
         let mut installed = Vec::new();
         install_modrinth_recursive(&client, "P7dR8mSH", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
             .map_err(|e| format!("Installazione Fabric API necessaria per NOVA HUD non riuscita: {e}"))?;
+        install_modrinth_recursive(&client, "YL57xq9U", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
+            .map_err(|e| format!("Installazione Iris/Sodium per la gestione shader non riuscita: {e}"))?;
     }
-    if ["fabric", "quilt"].contains(&loader.as_str()) {
+    if loader == "fabric" {
         use base64::Engine;
         let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
