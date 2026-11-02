@@ -236,13 +236,30 @@ struct JavaRuntimeInfo {
     error: Option<String>,
 }
 
+fn collect_java_binaries(root: &std::path::Path, depth: usize, output: &mut Vec<String>) {
+    if depth > 7 { return; }
+    if let Ok(entries) = fs::read_dir(root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let name = path.file_name().map(|v| v.to_string_lossy().to_lowercase()).unwrap_or_default();
+                if name == (if cfg!(windows) { "java.exe" } else { "java" }) {
+                    output.push(path.to_string_lossy().to_string());
+                }
+            } else if path.is_dir() {
+                collect_java_binaries(&path, depth + 1, output);
+            }
+        }
+    }
+}
+
 fn java_candidates() -> Vec<String> {
     let mut values = Vec::new();
     if let Ok(value) = env::var("JAVA_HOME") {
         values.push(PathBuf::from(value).join(if cfg!(windows) { "bin/java.exe" } else { "bin/java" }).to_string_lossy().to_string());
     }
     values.push(if cfg!(windows) { "java.exe".into() } else { "java".into() });
-    if let Ok(root) = minecraft_dir() { if let Some(installed) = find_java_binary(&root.join("nova-runtimes"), 0) { values.push(installed.to_string_lossy().to_string()); } }
+    if let Ok(root) = minecraft_dir() { collect_java_binaries(&root.join("nova-runtimes"), 0, &mut values); }
     values
 }
 
