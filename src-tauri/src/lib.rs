@@ -614,6 +614,8 @@ fn import_instance_pack_data(instance_path: String, kind: String, filename: Stri
     if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
     let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64).map_err(|_| "File non codificato correttamente")?;
     if bytes.len() > 512 * 1024 * 1024 { return Err("Il pacchetto supera il limite di 512 MB".into()); }
+    let archive = zip::ZipArchive::new(std::io::Cursor::new(&bytes)).map_err(|e| format!("Archivio ZIP non valido: {e}"))?;
+    if archive.is_empty() { return Err("L'archivio ZIP è vuoto".into()); }
     let destination = root.join(kind).join(&filename);
     fs::create_dir_all(destination.parent().ok_or("Destinazione non valida")?).map_err(|e| e.to_string())?;
     fs::write(destination, bytes).map_err(|e| e.to_string())?;
