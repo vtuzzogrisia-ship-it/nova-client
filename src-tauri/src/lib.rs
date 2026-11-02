@@ -31,21 +31,22 @@ fn list_installed_mods() -> Result<Vec<String>, String> {
     Ok(files)
 }
 
-#[tauri::command]
-fn install_modrinth_project(project_id: String, game_version: String, loader: String) -> Result<String, String> {
-    if !project_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
-        return Err("ID progetto non valido".into());
-    }
-    if !["fabric", "forge", "neoforge", "quilt"].contains(&loader.as_str()) {
-        return Err("Mod loader non supportato".into());
-    }
-    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (mod manager)").build().map_err(|e| e.to_string())?;
+fn install_modrinth_recursive(
+    client: &reqwest::blocking::Client,
+    project_id: &str,
+    game_version: &str,
+    loader: &str,
+    mods_dir: &std::path::Path,
+    visited: &mut std::collections::HashSet<String>,
+    installed: &mut Vec<String>,
+) -> Result<(), String> {
+    if !visited.insert(project_id.to_string()) { return Ok(()); }
     let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{}/version", project_id))
         .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
         .send().map_err(|e| format!("Modrinth non raggiungibile: {e}"))?
         .error_for_status().map_err(|e| format!("Ricerca versioni fallita: {e}"))?
         .json().map_err(|e| format!("Risposta Modrinth non valida: {e}"))?;
-    let version = versions.first().ok_or("Nessuna versione compatibile trovata per questa versione di Minecraft e loader")?;
+    let version = versions.first().ok_or_else(|| format!("Nessuna versione compatibile trovata per la dipendenza {project_id}"))?;
     let files = version["files"].as_array().ok_or("Il progetto non contiene file scaricabili")?;
     let file = files.iter().find(|f| f["primary"].as_bool() == Some(true)).or_else(|| files.first()).ok_or("Nessun file disponibile")?;
     let filename = file["filename"].as_str().ok_or("Nome file mancante")?;
@@ -56,13 +57,47 @@ fn install_modrinth_project(project_id: String, game_version: String, loader: St
     let bytes = client.get(url).send().map_err(|e| format!("Download fallito: {e}"))?
         .error_for_status().map_err(|e| format!("Download rifiutato: {e}"))?
         .bytes().map_err(|e| format!("Lettura download fallita: {e}"))?;
-    let dir = minecraft_dir()?.join("mods");
-    fs::create_dir_all(&dir).map_err(|e| format!("Impossibile creare la cartella mods: {e}"))?;
-    let destination = dir.join(filename);
-    fs::write(&destination, &bytes).map_err(|e| format!("Impossibile salvare la mod: {e}"))?;
-    Ok(filename.to_string())
+    if let Some(expected) = file["hashes"]["sha1"].as_str() {
+        use sha1::{Digest, Sha1};
+        let actual = format!("{:x}", Sha1::digest(&bytes));
+        if !actual.eq_ignore_ascii_case(expected) { return Err(format!("Verifica SHA-1 fallita per {filename}")); }
+    }
+    fs::create_dir_all(mods_dir).map_err(|e| e.to_string())?;
+    fs::write(mods_dir.join(filename), &bytes).map_err(|e| format!("Impossibile salvare {filename}: {e}"))?;
+    installed.push(filename.to_string());
+
+    if let Some(dependencies) = version["dependencies"].as_array() {
+        for dependency in dependencies {
+            if dependency["dependency_type"].as_str() != Some("required") { continue; }
+            if let Some(required_version) = dependency["version_id"].as_str() {
+                let required: serde_json::Value = client.get(format!("https://api.modrinth.com/v2/version/{required_version}"))
+                    .send().map_err(|e| format!("Download metadati dipendenza fallito: {e}"))?
+                    .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| e.to_string())?;
+                let required_project = required["project_id"].as_str().ok_or("ID progetto dipendenza mancante")?;
+                install_modrinth_recursive(client, required_project, game_version, loader, mods_dir, visited, installed)?;
+            } else if let Some(required_project) = dependency["project_id"].as_str() {
+                install_modrinth_recursive(client, required_project, game_version, loader, mods_dir, visited, installed)?;
+            }
+        }
+    }
+    Ok(())
 }
 
+#[tauri::command]
+fn install_modrinth_project(project_id: String, game_version: String, loader: String) -> Result<Vec<String>, String> {
+    if !project_id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err("ID progetto non valido".into());
+    }
+    if !["fabric", "forge", "neoforge", "quilt"].contains(&loader.as_str()) {
+        return Err("Mod loader non supportato".into());
+    }
+    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (mod manager)").build().map_err(|e| e.to_string())?;
+    let dir = minecraft_dir()?.join("mods");
+    let mut visited = std::collections::HashSet::new();
+    let mut installed = Vec::new();
+    install_modrinth_recursive(&client, &project_id, &game_version, &loader, &dir, &mut visited, &mut installed)?;
+    Ok(installed)
+}
 
 fn write_varint(mut value: i32, out: &mut Vec<u8>) {
     loop {
