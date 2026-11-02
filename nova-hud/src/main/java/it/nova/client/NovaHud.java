@@ -22,11 +22,10 @@ public final class NovaHud implements ClientModInitializer {
     private static KeyBinding cpsKey;
     private static KeyBinding keysKey;
     private static KeyBinding coordinatesKey;
-    private static boolean menuOpen = false;
-    private static boolean showFps = true;
-    private static boolean showCps = true;
-    private static boolean showKeys = true;
-    private static boolean showCoordinates = true;
+    static boolean showFps = true;
+    static boolean showCps = true;
+    static boolean showKeys = true;
+    static boolean showCoordinates = true;
     private static boolean leftWasDown = false;
     private static boolean rightWasDown = false;
     private static final Deque<Long> leftClicks = new ArrayDeque<>();
@@ -45,7 +44,10 @@ public final class NovaHud implements ClientModInitializer {
         keysKey = registerToggle("key.nova_hud.keystrokes", GLFW.GLFW_KEY_F8);
         coordinatesKey = registerToggle("key.nova_hud.coordinates", GLFW.GLFW_KEY_F9);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            while (menuKey.wasPressed()) menuOpen = !menuOpen;
+            while (menuKey.wasPressed()) {
+                if (client.currentScreen instanceof NovaMenuScreen) client.setScreen(null);
+                else client.setScreen(new NovaMenuScreen());
+            }
             while (fpsKey.wasPressed()) showFps = !showFps;
             while (cpsKey.wasPressed()) showCps = !showCps;
             while (keysKey.wasPressed()) showKeys = !showKeys;
@@ -96,18 +98,6 @@ public final class NovaHud implements ClientModInitializer {
             drawKey(context, client, "RMB", rightWasDown, 70, y + 28);
         }
 
-        if (menuOpen) {
-            int left = 12;
-            int top = Math.max(92, y + 54);
-            context.fill(left, top, left + 210, top + 112, 0xE8171725);
-            context.fill(left, top, left + 210, top + 22, 0xFF7654C8);
-            context.drawTextWithShadow(client.textRenderer, "NOVA CLIENT  ·  MOD MENU", left + 8, top + 7, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[F6] FPS: " + (showFps ? "ON" : "OFF"), left + 10, top + 34, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[F7] CPS: " + (showCps ? "ON" : "OFF"), left + 10, top + 50, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[F8] Keystrokes: " + (showKeys ? "ON" : "OFF"), left + 10, top + 66, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "[F9] Coordinate: " + (showCoordinates ? "ON" : "OFF"), left + 10, top + 82, 0xFFFFFFFF);
-            context.drawTextWithShadow(client.textRenderer, "Right Shift: chiudi menu", left + 10, top + 98, 0xFFB99BFF);
-        }
 
     }
 
