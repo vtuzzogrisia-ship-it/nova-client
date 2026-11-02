@@ -140,7 +140,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
   try {
    const [runtime,manifest,instanceList]=await Promise.all([invoke<JavaRuntime[]>("detect_java_runtimes"),invoke<any>("list_minecraft_versions"),invoke<GameInstanceEntry[]>("list_game_instances")]);
    setJava(runtime);setInstances(instanceList);const active=localStorage.getItem("nova.activeInstance");if(active&&instanceList.some(item=>item.path===active)){const current=instanceList.find(item=>item.path===active)!;setInstancePath(active);setSelected(current.version);setLoader(current.loader);const profile=await invoke<string|null>("get_instance_profile_id",{instancePath:active});setInstalledVersionId(profile||"");}const all=(manifest.versions||[]) as MinecraftVersionEntry[];setVersions(all);
-   if(all.some(v=>v.id==="1.21.4"))setSelected("1.21.4");
+
   } catch(e){setMessage(String(e));} finally{setBusy(false);}
  };
  useEffect(()=>{void refresh();},[]);
@@ -162,6 +162,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
   try{setPacks(await invoke<string[]>("list_instance_packs",{instancePath,kind}));}catch(e){setMessage(String(e));}
  };
  const loadBackups=async(path=instancePath)=>{if(!path)return;try{const found=await invoke<string[]>("list_instance_backups",{instancePath:path});setBackups(found);setSelectedBackup(found[0]||"");}catch(e){setMessage(String(e));}};
+ const installShaderSupport=async()=>{if(!instancePath)return;setBusy(true);setMessage("Installazione Iris e Sodium in corso…");try{const files=await invoke<string[]>("install_instance_shader_support",{instancePath});setMessage("Supporto shader installato: "+files.join(", "));}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const createBackup=async()=>{if(!instancePath)return;setBusy(true);try{const path=await invoke<string>("backup_game_instance",{instancePath});setMessage("Backup creato: "+path);await loadBackups();}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const restoreBackup=async()=>{if(!instancePath||!selectedBackup)return;if(!window.confirm("Ripristinare questo backup? I file attuali di mod, pack, configurazione e salvataggi verranno sostituiti."))return;setBusy(true);try{await invoke("restore_game_instance_backup",{instancePath,backupPath:selectedBackup});setMessage("Backup ripristinato.");await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const loadGameLog=async()=>{if(!instancePath)return;try{setGameLog(await invoke<string>("read_instance_log",{instancePath}));}catch(e){setMessage(String(e));}};
@@ -183,7 +184,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="library-filters"><input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Nome giocatore offline"/><button className="primary-btn" disabled={busy||!installedVersionId||!instancePath} onClick={()=>void launch()}>Avvia Minecraft offline</button></div>
     {installedVersionId&&<p>Profilo installato: {installedVersionId}</p>}
-    <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
+    <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button><button className="text-btn" onClick={()=>void installShaderSupport()} disabled={!instancePath||loader!=="fabric"||busy}>Installa Iris + Sodium</button></div>
     {packs.map(pack=><div className="installed-row" key={pack}><span>{pack}</span><div><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:true}).then(()=>setMessage("Pacchetto attivato: "+pack)).catch(e=>setMessage(String(e)))}>Attiva</button><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:false}).then(()=>setMessage("Pacchetto disattivato: "+pack)).catch(e=>setMessage(String(e)))}>Disattiva</button></div></div>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
     <div className="installed-list"><strong>Log di Minecraft</strong><div className="catalog-actions"><button className="text-btn" disabled={!instancePath} onClick={()=>void loadGameLog()}>Leggi ultime righe del log</button></div>{gameLog&&<pre className="game-log">{gameLog}</pre>}</div>
