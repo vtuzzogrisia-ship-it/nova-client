@@ -24,6 +24,7 @@ const initialMods: Mod[] = [
 
 const nav = [
   { id: "home", label: "Dashboard", icon: Gauge },
+  { id: "launcher", label: "Launcher", icon: Download },
   { id: "mods", label: "Mod Manager", icon: Layers3 },
   { id: "library", label: "Libreria mod", icon: Download },
   { id: "profiles", label: "Profili", icon: Box },
@@ -94,6 +95,7 @@ function App() {
           <div className="stat-grid"><div className="stat-card"><div className="stat-icon purple"><Layers3 size={18}/></div><span>MOD ATTIVE</span><strong>{mods.filter(m => m.enabled).length}</strong><small>Preferenze salvate su questo dispositivo</small></div><div className="stat-card"><div className="stat-icon blue"><Cpu size={18}/></div><span>RAM ALLOCATA</span><strong>{ram} <small>GB</small></strong><small>Preferenza salvata localmente</small></div><div className="stat-card"><div className="stat-icon green"><ShieldCheck size={18}/></div><span>STATO CLIENT</span><strong className="state-text">Preview</strong><small>Launcher non collegato</small></div></div>
           <div className="hint-bar"><div className="hint-icon"><Menu size={18}/></div><div><strong>Apri il menu mod in un tocco</strong><p>Premi <kbd>RIGHT SHIFT</kbd> in questa finestra per aprire il menu rapido NOVA.</p></div><button onClick={() => setMenuOpen(true)}>Provalo <span>→</span></button></div>
         </>}
+        {page === "launcher" && <LauncherTools/>}
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); toast(`Profilo "${profile.name}" applicato alla configurazione rapida.`); setPage("home"); }}/>}
@@ -108,6 +110,67 @@ function App() {
   </div>;
 }
 
+
+
+type JavaRuntime = {available:boolean; executable?:string; version?:string; major?:number; error?:string};
+type MinecraftVersionEntry = {id:string;type:string;url:string};
+function LauncherTools() {
+ const [java,setJava]=useState<JavaRuntime[]>([]);
+ const [versions,setVersions]=useState<MinecraftVersionEntry[]>([]);
+ const [selected,setSelected]=useState("1.21.4");
+ const [instanceName,setInstanceName]=useState("NOVA");
+ const [loader,setLoader]=useState("vanilla");
+ const [message,setMessage]=useState("");
+ const [busy,setBusy]=useState(false);
+ const [instancePath,setInstancePath]=useState("");
+ const [packs,setPacks]=useState<string[]>([]);
+ const [packKind,setPackKind]=useState("resourcepacks");
+ const refresh=async()=>{
+  setBusy(true);setMessage("");
+  try {
+   const [runtime,manifest]=await Promise.all([invoke<JavaRuntime[]>("detect_java_runtimes"),invoke<any>("list_minecraft_versions")]);
+   setJava(runtime);const all=(manifest.versions||[]) as MinecraftVersionEntry[];setVersions(all);
+   if(all.some(v=>v.id==="1.21.4"))setSelected("1.21.4");
+  } catch(e){setMessage(String(e));} finally{setBusy(false);}
+ };
+ useEffect(()=>{void refresh();},[]);
+ const install=async()=>{
+  setBusy(true);setMessage("Download dei metadati e del client Minecraft in corso…");
+  try{setMessage(await invoke<string>("install_vanilla_version",{versionId:selected}));}
+  catch(e){setMessage(String(e));}finally{setBusy(false);}
+ };
+ const create=async()=>{
+  setBusy(true);setMessage("");
+  try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);setMessage("Istanza creata: "+path);}
+  catch(e){setMessage(String(e));}finally{setBusy(false);}
+ };
+ const loadPacks=async(kind=packKind)=>{
+  if(!instancePath)return;
+  setPackKind(kind);
+  try{setPacks(await invoke<string[]>("list_instance_packs",{instancePath,kind}));}catch(e){setMessage(String(e));}
+ };
+ return <>
+  <div className="page-title"><div className="eyebrow">MINECRAFT RUNTIME</div><h1>Launcher <em>NOVA</em></h1><p>Rilevamento Java, versioni ufficiali e cartelle istanza isolate. Il download iniziale prepara i metadati e il client jar verificato.</p></div>
+  <section className="library-panel">
+   <div className="installed-list"><strong>Runtime Java rilevati</strong>
+    {java.length===0?<p>Ricerca Java in corso…</p>:java.map((item,i)=><div className="installed-row" key={i}><span><strong>{item.available?item.version:"Java non trovato"}</strong><small>{item.executable||item.error}</small></span><span>{item.major?"Java "+item.major:""}</span></div>)}
+    <div className="catalog-actions"><button className="text-btn" onClick={()=>void refresh()} disabled={busy}>Rileva di nuovo</button></div>
+   </div>
+   <div className="installed-list"><strong>Versioni Minecraft ufficiali</strong>
+    <div className="library-filters"><select value={selected} onChange={e=>setSelected(e.target.value)}>{versions.filter(v=>v.type==="release").slice(0,150).map(v=><option key={v.id} value={v.id}>{v.id}</option>)}</select><button className="primary-btn" disabled={busy||versions.length===0} onClick={()=>void install()}>{busy?"Attendere…":"Scarica versione"}</button></div>
+    <p>Il download corrente installa JSON versione e client JAR, con verifica SHA-1. Non è ancora sufficiente per avviare il gioco: resolver di librerie, natives e asset deve essere completato prima del comando di launch.</p>
+   </div>
+   <div className="installed-list"><strong>Istanze indipendenti</strong>
+    <div className="library-filters"><input value={instanceName} onChange={e=>setInstanceName(e.target.value)} placeholder="Nome istanza"/><select value={loader} onChange={e=>setLoader(e.target.value)}><option value="vanilla">Vanilla</option><option value="fabric">Fabric</option><option value="quilt">Quilt</option><option value="forge">Forge</option><option value="neoforge">NeoForge</option></select><button className="primary-btn" disabled={busy} onClick={()=>void create()}>Crea istanza</button></div>
+    {instancePath&&<p>Cartella attiva: {instancePath}</p>}
+    <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
+    {packs.map(pack=><p key={pack}>{pack}</p>)}
+    <p>Ogni istanza ha directory dedicate per mods, resourcepacks, shaderpacks, config e mondi. La selezione del loader crea la struttura, ma non installa ancora il loader nel runtime.</p>
+   </div>
+   {message&&<div className="library-message">{message}</div>}
+  </section>
+ </>;
+}
 
 function ModLibrary() {
  const [source,setSource]=useState<"modrinth"|"curseforge">("modrinth");
