@@ -125,6 +125,7 @@ function LauncherTools() {
  const [instancePath,setInstancePath]=useState("");
  const [packs,setPacks]=useState<string[]>([]);
  const [packKind,setPackKind]=useState("resourcepacks");
+ const importPack=async(file?:File)=>{if(!file||!instancePath)return;setBusy(true);setMessage("");try{const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Lettura file non riuscita"));reader.readAsDataURL(file);});const filename=await invoke<string>("import_instance_pack_data",{instancePath,kind:packKind,filename:file.name,dataBase64:data});setMessage("Pacchetto importato: "+filename);await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const refresh=async()=>{
   setBusy(true);setMessage("");
   try {
@@ -165,6 +166,7 @@ function LauncherTools() {
     {instancePath&&<p>Cartella attiva: {instancePath}</p>}
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><p key={pack}>{pack}</p>)}
+    <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
     <p>Ogni istanza ha directory dedicate per mods, resourcepacks, shaderpacks, config e mondi. La selezione del loader crea la struttura, ma non installa ancora il loader nel runtime.</p>
    </div>
    {message&&<div className="library-message">{message}</div>}
