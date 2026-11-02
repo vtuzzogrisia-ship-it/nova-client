@@ -32,3 +32,78 @@
 @media(max-width:700px){.server-row-actions{width:100%}}
 
 .game-log{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#070810;border:1px solid #ffffff12;border-radius:10px;padding:13px;color:#b9b4ca;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+
+
+/* NOVA flat desktop theme: solid surfaces, restrained accent, no decorative gradients */
+:root{color-scheme:dark;background:#101114;color:#ececf0}
+body{background:#101114}
+.brand-mark,.avatar,.primary-btn,.orb-core,.launch-card,.cube-top,.cube-front,.cube-side,.nav-item.active,.upgrade-card,.mod-overlay,.source-tab.active,.catalog-actions .text-btn,.installed-row .text-btn,.server-row-actions .text-btn,.mod-symbol,.hint-icon,.stat-icon{background-image:none;box-shadow:none}
+.brand-mark{background:#6046a8;border-radius:9px}
+.avatar{background:#37343f;border:1px solid #4b4854}
+.primary-btn{background:#7154bf;border:1px solid #8065c7;border-radius:7px;box-shadow:none}
+.primary-btn:hover{background:#8065c7}
+.nav-item.active{background:#26232e;color:#e2d8ff;box-shadow:inset 2px 0 #9a7be0}
+.upgrade-card{background:#18191e;border-color:#303039;color:#c9b8f4}
+.launch-card{background:#191a20;border-color:#30313a;border-radius:12px}
+.launch-art{background:none}
+.cube{filter:none}
+.cube-top{background:#6c5a93}.cube-front{background:#57467c}.cube-side{background:#3d3550}
+.orb-core{background:#34313d}.hero-orb{display:none}
+.welcome-row{min-height:140px}
+.welcome-row h1 em,.page-title h1 em,.overlay-intro h2 em{color:#b8a2e8}
+.stat-card,.mod-panel,.library-panel,.social-card,.social-setup{background:#17181d;border-color:#30313a;box-shadow:none;border-radius:10px}
+.profile-card,.hint-bar,.installed-list{background:#17181d;border-color:#30313a}
+.filter.active,.source-tab.active{background:#282431;color:#d8caee}
+.mod-overlay{background:#17181d;border-color:#373540;box-shadow:0 18px 55px #0008}
+.overlay-backdrop{backdrop-filter:blur(4px)}
+.toast{background:#24232a;color:#eee;border-color:#45434d;box-shadow:none}
+.select-wrap,.library-filters input,.library-filters select,.api-key-row input,.search-box{background:#1b1c22;border-color:#393a43}
+.game-log{background:#0d0e11;border-color:#30313a}
+.catalog-card{background:#1b1c22;border-color:#30313a}
+.social-setup{padding:17px 18px;margin-bottom:14px;display:flex;align-items:start;justify-content:space-between;gap:18px;border:1px solid #30313a;border-radius:10px}
+.social-identity{display:grid;gap:10px;flex:1;min-width:0}
+.social-identity>div:first-child{display:grid;gap:4px}
+.social-identity strong,.social-card-head strong{font-size:13px;color:#f0eff4}
+.social-identity small,.social-identity>small,.social-subtle{font-size:10px;color:#8d8c98}
+.social-identity-fields{display:flex;gap:8px;flex-wrap:wrap}
+.social-identity-fields input,.friend-add input,.chat-compose input,.friend-invite-form input{height:36px;border:1px solid #3a3b44;border-radius:7px;background:#101115;color:#eee;padding:0 10px;font:inherit;font-size:11px;min-width:0}
+.social-identity-fields input:first-child{width:120px}
+.social-identity-fields input:nth-child(2){width:min(310px,100%)}
+.small-btn{height:36px}
+.social-status{display:flex;gap:8px;align-items:center;color:#9998a3;font-size:10px;max-width:270px;overflow-wrap:anywhere;line-height:1.5}
+.social-live-dot{width:7px;height:7px;border-radius:50%;background:#79bd92;flex-shrink:0}
+.social-grid{display:grid;grid-template-columns:minmax(220px, .8fr) minmax(0,1.6fr);gap:14px;align-items:stretch}
+.social-card{border:1px solid #30313a;border-radius:10px;padding:15px;min-width:0}
+.social-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.social-card-head .text-btn{display:flex;align-items:center;gap:6px}
+.social-friends{min-height:450px}
+.friend-list-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 9px;border:0;border-bottom:1px solid #2b2c33;background:transparent;color:#dddde4;text-align:left;width:100%}
+button.friend-list-row{cursor:pointer}
+.friend-list-row.selected{background:#272430;border-radius:7px;color:#f3ecff}
+.friend-list-row span{display:grid;gap:4px;min-width:0}
+.friend-list-row b{font-size:11px;font-weight:600}
+.friend-list-row small{font-size:9px;color:#898894;overflow-wrap:anywhere}
+.friend-requests{padding:10px 0 14px;border-bottom:1px solid #30313a;margin-bottom:8px}
+.friend-requests>strong{display:block;font-size:10px;color:#cbb8f2;margin-bottom:7px}
+.friend-add{display:grid;gap:8px;padding:12px 0;border-bottom:1px solid #30313a;margin-bottom:7px}
+.friend-add .primary-btn{justify-content:center}
+.social-empty{min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;color:#797984;text-align:center}
+.social-empty p{font-size:11px;margin:0;color:#b1b0ba}
+.social-empty small{font-size:9px;max-width:200px;line-height:1.5}
+.social-chat{display:flex;flex-direction:column;min-height:450px}
+.chat-history{flex:1;min-height:200px;max-height:340px;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:5px 0 12px}
+.chat-message{align-self:flex-start;max-width:82%;background:#24252c;border:1px solid #393a43;border-radius:9px;padding:9px 11px}
+.chat-message.outgoing{align-self:flex-end;background:#302a3c;border-color:#524767}
+.chat-message small{display:block;color:#9d9ba6;font-size:8px;margin-bottom:5px}
+.chat-message p{font-size:11px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;margin:0;color:#ecebf0}
+.chat-compose{display:flex;gap:8px;padding:10px 0;border-top:1px solid #30313a}
+.chat-compose input{flex:1}
+.chat-compose .primary-btn{height:36px}
+.friend-invite-form{border-top:1px solid #30313a;padding-top:11px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.friend-invite-form .social-card-head{grid-column:1/-1;margin:0}
+.friend-invite-form .text-btn{grid-column:1/-1;justify-self:start}
+.social-invites{margin-top:14px}
+.social-note{border:1px solid #30313a;border-radius:9px;padding:13px 15px;margin-top:14px;background:#17181d}
+.social-note strong{font-size:10px;color:#d4c8ec}
+.social-note p{font-size:10px;line-height:1.6;color:#94939e;margin:6px 0 0}
+@media(max-width:760px){.social-setup{flex-direction:column}.social-grid{grid-template-columns:1fr}.social-friends{min-height:0}.social-chat{min-height:370px}.friend-invite-form{grid-template-columns:1fr}.friend-invite-form .social-card-head,.friend-invite-form .text-btn{grid-column:auto}}
