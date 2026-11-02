@@ -10,6 +10,7 @@ import {
 
 type Mod = { id: string; name: string; category: string; description: string; enabled: boolean; status: string };
 type CatalogItem = { id: string | number; name: string; summary: string; icon?: string; url: string; downloads?: number; source: string };
+type ModUpdate = { projectId: string; currentFile: string; latestFile: string; versionId: string };
 const initialMods: Mod[] = [
   { id: "sodium", name: "Sodium", category: "Performance", description: "Rendering engine ottimizzato per aumentare gli FPS.", enabled: true, status: "Pronto per l'integrazione" },
   { id: "lithium", name: "Lithium", category: "Performance", description: "Ottimizza la logica interna del gioco e il tick.", enabled: true, status: "Pronto per l'integrazione" },
