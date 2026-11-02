@@ -16,7 +16,7 @@ Offline launch uses a local player name and does not authenticate to premium onl
 
 ## Development
 
-Install dependencies with `npm install`, then run `npm run dev` for the Vite development server. Use `npm run tauri dev` to launch the desktop shell when the Rust toolchain and platform prerequisites are installed. To build the bundled NOVA HUD as part of a desktop release, install JDK 21 and Gradle 8.10.2; the desktop workflow builds and embeds the HUD JAR automatically.
+Install dependencies with `npm install`, then run `npm run dev` for the Vite development server. Use `npm run tauri dev` to launch the desktop shell when the Rust toolchain and platform prerequisites are installed. To build the bundled NOVA HUD as part of a desktop release, install JDK 21 and Gradle 8.11.1; the desktop workflow builds and embeds the HUD JAR automatically.
 
 ## Product direction
 
