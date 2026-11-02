@@ -133,6 +133,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const [packKind,setPackKind]=useState("resourcepacks");
  const [backups,setBackups]=useState<string[]>([]);
  const [selectedBackup,setSelectedBackup]=useState("");
+ const [gameLog,setGameLog]=useState("");
  const importPack=async(file?:File)=>{if(!file||!instancePath)return;setBusy(true);setMessage("");try{const data=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(",")[1]||"");reader.onerror=()=>reject(new Error("Lettura file non riuscita"));reader.readAsDataURL(file);});const filename=await invoke<string>("import_instance_pack_data",{instancePath,kind:packKind,filename:file.name,dataBase64:data});setMessage("Pacchetto importato: "+filename);await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const refresh=async()=>{
   setBusy(true);setMessage("");
@@ -163,6 +164,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
  const loadBackups=async(path=instancePath)=>{if(!path)return;try{const found=await invoke<string[]>("list_instance_backups",{instancePath:path});setBackups(found);setSelectedBackup(found[0]||"");}catch(e){setMessage(String(e));}};
  const createBackup=async()=>{if(!instancePath)return;setBusy(true);try{const path=await invoke<string>("backup_game_instance",{instancePath});setMessage("Backup creato: "+path);await loadBackups();}catch(e){setMessage(String(e));}finally{setBusy(false);}};
  const restoreBackup=async()=>{if(!instancePath||!selectedBackup)return;if(!window.confirm("Ripristinare questo backup? I file attuali di mod, pack, configurazione e salvataggi verranno sostituiti."))return;setBusy(true);try{await invoke("restore_game_instance_backup",{instancePath,backupPath:selectedBackup});setMessage("Backup ripristinato.");await loadPacks(packKind);}catch(e){setMessage(String(e));}finally{setBusy(false);}};
+ const loadGameLog=async()=>{if(!instancePath)return;try{setGameLog(await invoke<string>("read_instance_log",{instancePath}));}catch(e){setMessage(String(e));}};
  return <>
   <div className="page-title"><div className="eyebrow">MINECRAFT RUNTIME</div><h1>Launcher <em>NOVA</em></h1><p>Rilevamento Java, versioni ufficiali e cartelle istanza isolate. Il download iniziale prepara i metadati e il client jar verificato.</p></div>
   <section className="library-panel">
@@ -184,6 +186,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><div className="installed-row" key={pack}><span>{pack}</span><div><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:true}).then(()=>setMessage("Pacchetto attivato: "+pack)).catch(e=>setMessage(String(e)))}>Attiva</button><button className="text-btn" onClick={()=>void invoke("activate_instance_pack",{instancePath,kind:packKind,filename:pack,enabled:false}).then(()=>setMessage("Pacchetto disattivato: "+pack)).catch(e=>setMessage(String(e)))}>Disattiva</button></div></div>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
+    <div className="installed-list"><strong>Log di Minecraft</strong><div className="catalog-actions"><button className="text-btn" disabled={!instancePath} onClick={()=>void loadGameLog()}>Leggi ultime righe del log</button></div>{gameLog&&<pre className="game-log">{gameLog}</pre>}</div>
     <div className="installed-list"><strong>Backup e ripristino istanza</strong>
      <div className="catalog-actions"><button className="text-btn" disabled={!instancePath||busy} onClick={()=>void createBackup()}>Crea backup</button><button className="text-btn" disabled={!instancePath} onClick={()=>void loadBackups()}>Aggiorna elenco</button></div>
      <div className="library-filters"><select value={selectedBackup} onChange={e=>setSelectedBackup(e.target.value)}><option value="">Nessun backup disponibile</option>{backups.map(path=><option key={path} value={path}>{path.split(/[\\/]/).pop()}</option>)}</select><button className="text-btn" disabled={!selectedBackup||busy} onClick={()=>void restoreBackup()}>Ripristina backup</button></div>
