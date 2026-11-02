@@ -1,10 +1,10 @@
 # NOVA CLIENT
 
-**NOVA CLIENT is a standalone desktop application for Minecraft Java**, designed as a downloadable launcher/client in the same product category as Lunar Client. The user installs and opens NOVA on Windows, macOS or Linux; NOVA is not distributed as a Minecraft mod and must not require copying a NOVA JAR into a Minecraft `mods` folder.
+**NOVA CLIENT is a standalone desktop application for Minecraft Java**, designed as a downloadable launcher/client in the same product category as Lunar Client. The user installs and opens NOVA on **Windows 10/11 x64**; NOVA is not distributed as a Minecraft mod and must not require copying a NOVA JAR into a Minecraft `mods` folder.
 
 ## Current status
 
-The repository now contains a Tauri 2 desktop launcher with a React interface and a Rust Minecraft launch engine. Desktop installer builds are configured for Windows, macOS and Linux through GitHub Actions. The launcher can install complete Minecraft profiles, prepare isolated instances, install Modrinth mods and `.mrpack` modpacks with dependency/hash handling, import/activate resource and shader packs, create/restore instance backups, inspect game logs, and start a local offline player session. The bundled Fabric HUD targets Minecraft 1.21.4. Java runtimes can be installed from the launcher; the in-game HUD is currently Fabric 1.21.4 only. Microsoft account login is intentionally excluded.
+The repository now contains a Tauri 2 desktop launcher with a React interface and a Rust Minecraft launch engine. The supported desktop platform is Windows 10/11 x64. GitHub Actions builds Windows NSIS (`.exe`) and MSI (`.msi`) installers only; macOS and Linux packages are not produced. The launcher can install complete Minecraft profiles, prepare isolated instances, install Modrinth mods and `.mrpack` modpacks with dependency/hash handling, import/activate resource and shader packs, create/restore instance backups, inspect game logs, and start a local offline player session. The bundled Fabric HUD targets Minecraft 1.21.4. Java runtimes can be installed from the launcher; the in-game HUD is currently Fabric 1.21.4 only. Microsoft account login is intentionally excluded.
 
 ## Launcher implementation status
 
@@ -28,4 +28,4 @@ Install dependencies with `npm install`, then run `npm run dev` for the Vite dev
 - Integrated in-game HUD and Right Shift mod menu
 - Resource packs, shaders, server tools and social features
 
-The build workflow produces desktop application bundles only. Features are marked complete only after implementation and testing.
+The build workflow produces Windows x64 desktop installers only (`.exe` and `.msi`). Features are marked complete only after implementation and testing.
