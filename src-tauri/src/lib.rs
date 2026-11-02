@@ -515,6 +515,69 @@ fn activate_instance_pack(instance_path: String, kind: String, filename: String)
     fs::write(options_path, lines.join("\n") + "\n").map_err(|e| e.to_string())
 }
 
+
+fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
+    if depth > 7 { return None; }
+    let entries = fs::read_dir(root).ok()?;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_file() {
+            let name = path.file_name()?.to_string_lossy().to_lowercase();
+            if name == if cfg!(windows) { "java.exe" } else { "java" } { return Some(path); }
+        } else if path.is_dir() {
+            if let Some(found) = find_java_binary(&path, depth + 1) { return Some(found); }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+fn install_java_runtime(major: u32) -> Result<String, String> {
+    use std::io::Cursor;
+    if ![17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 17 e 21".into()); }
+    let os = match env::consts::OS { "windows" => "windows", "macos" => "mac", "linux" => "linux", _ => return Err("Sistema operativo non supportato per il download Java".into()) };
+    let arch = match env::consts::ARCH { "x86_64" => "x64", "aarch64" => "aarch64", _ => return Err("Architettura non supportata per il download Java".into()) };
+    let destination = minecraft_dir()?.join("nova-runtimes").join(format!("temurin-{major}-{os}-{arch}"));
+    if let Some(existing) = find_java_binary(&destination, 0) { return Ok(existing.to_string_lossy().to_string()); }
+    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0").build().map_err(|e| e.to_string())?;
+    let url = format!("https://api.adoptium.net/v3/binary/latest/{major}/ga/{os}/{arch}/jre/hotspot/normal/eclipse?project=jdk");
+    let bytes = client.get(&url).send().map_err(|e| format!("Download Java non riuscito: {e}"))?
+        .error_for_status().map_err(|e| format!("Runtime Java non disponibile: {e}"))?
+        .bytes().map_err(|e| e.to_string())?;
+    if bytes.len() > 512 * 1024 * 1024 { return Err("Archivio Java troppo grande".into()); }
+    fs::create_dir_all(&destination).map_err(|e| e.to_string())?;
+    #[cfg(target_os = "windows")]
+    {
+        let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| format!("Archivio Java ZIP non valido: {e}"))?;
+        for index in 0..archive.len() {
+            let mut file = archive.by_index(index).map_err(|e| e.to_string())?;
+            let Some(relative) = file.enclosed_name().map(PathBuf::from) else { continue; };
+            let output = destination.join(relative);
+            if file.is_dir() { fs::create_dir_all(&output).map_err(|e| e.to_string())?; }
+            else {
+                if let Some(parent) = output.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+                let mut target = fs::File::create(&output).map_err(|e| e.to_string())?;
+                std::io::copy(&mut file, &mut target).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let decoder = flate2::read::GzDecoder::new(Cursor::new(bytes));
+        let mut archive = tar::Archive::new(decoder);
+        archive.unpack(&destination).map_err(|e| format!("Estrazione runtime Java non riuscita: {e}"))?;
+    }
+    let executable = find_java_binary(&destination, 0).ok_or("Java è stato scaricato ma l'eseguibile non è stato trovato")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = fs::metadata(&executable).map_err(|e| e.to_string())?.permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&executable, permissions).map_err(|e| e.to_string())?;
+    }
+    Ok(executable.to_string_lossy().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -533,7 +596,8 @@ pub fn run() {
             import_instance_pack_data,
             activate_instance_pack,
             install_game_profile,
-            launch_offline_profile
+            launch_offline_profile,
+            install_java_runtime
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
