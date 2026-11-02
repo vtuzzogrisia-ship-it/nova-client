@@ -656,10 +656,18 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
             || (version_parts.get(1) == Some(&20) && version_parts.get(2).copied().unwrap_or(0) >= 5) { 21 }
         else if version_parts.get(1).copied().unwrap_or(0) >= 18 { 17 }
         else { 8 };
+    let detected_runtimes = detect_java_runtimes();
     let selected_java = if let Some(executable) = java_executable {
+        if let Some(runtime) = detected_runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(executable.as_str())) {
+            if runtime.major != Some(required_java) {
+                return Err(format!("Minecraft {game_version} richiede Java {required_java}; il runtime selezionato è {}.", runtime.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
+            }
+        } else {
+            return Err("Il runtime Java selezionato non è più disponibile. Rileva di nuovo Java e riprova.".into());
+        }
         Some(executable)
     } else {
-        detect_java_runtimes().into_iter()
+        detected_runtimes.into_iter()
             .find(|runtime| runtime.available && runtime.major == Some(required_java))
             .and_then(|runtime| runtime.executable)
     };
