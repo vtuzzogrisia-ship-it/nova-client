@@ -16,8 +16,8 @@ fn get_minecraft_mods_path() -> Result<String, String> {
 }
 
 #[tauri::command]
-fn list_installed_mods() -> Result<Vec<String>, String> {
-    let dir = minecraft_dir()?.join("mods");
+fn list_installed_mods(instance_path: Option<String>) -> Result<Vec<String>, String> {
+    let dir = if let Some(path) = instance_path { let root = PathBuf::from(path); if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); } root.join("mods") } else { minecraft_dir()?.join("mods") };
     if !dir.exists() { return Ok(Vec::new()); }
     let mut files = Vec::new();
     for entry in fs::read_dir(dir).map_err(|e| e.to_string())? {
@@ -214,11 +214,12 @@ fn ping_minecraft_server(address: String) -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn remove_installed_mod(filename: String) -> Result<(), String> {
+fn remove_installed_mod(filename: String, instance_path: Option<String>) -> Result<(), String> {
     if filename.is_empty() || filename != PathBuf::from(&filename).file_name().and_then(|x| x.to_str()).unwrap_or("") || !filename.ends_with(".jar") {
         return Err("Nome file non valido".into());
     }
-    let path = minecraft_dir()?.join("mods").join(filename);
+    let mods_dir = if let Some(instance) = instance_path { let root = PathBuf::from(instance); if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); } root.join("mods") } else { minecraft_dir()?.join("mods") };
+    let path = mods_dir.join(filename);
     if !path.exists() { return Err("Mod non trovata".into()); }
     fs::remove_file(path).map_err(|e| e.to_string())
 }
