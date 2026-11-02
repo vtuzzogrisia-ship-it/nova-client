@@ -345,7 +345,7 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
         use base64::Engine;
         let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
         if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
-            if bytes.starts_with(b"PK\\x03\\x04") {
+            if bytes.starts_with(b"PK\x03\x04") {
                 fs::write(path.join("mods").join("nova-hud.jar"), bytes)
                     .map_err(|e| format!("Impossibile installare NOVA HUD nell'istanza: {e}"))?;
             }
