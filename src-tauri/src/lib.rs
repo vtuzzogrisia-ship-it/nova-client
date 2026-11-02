@@ -444,6 +444,21 @@ fn start_social_listener_blocking(app: tauri::AppHandle, port: u16) -> Result<u1
     Ok(port)
 }
 
+fn detect_local_network_address_blocking() -> Result<String, String> {
+    use std::net::UdpSocket;
+    let socket = UdpSocket::bind("0.0.0.0:0").map_err(|e| format!("Rilevamento rete non riuscito: {e}"))?;
+    socket.connect("1.1.1.1:80").map_err(|e| format!("Nessun indirizzo di rete disponibile: {e}"))?;
+    let address = socket.local_addr().map_err(|e| e.to_string())?.ip();
+    if address.is_unspecified() || address.is_loopback() { return Err("Windows non ha un indirizzo LAN attivo. Controlla Wi-Fi o Ethernet.".into()); }
+    Ok(address.to_string())
+}
+
+#[tauri::command]
+async fn detect_local_network_address() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(detect_local_network_address_blocking)
+        .await.map_err(|e| e.to_string())?
+}
+
 fn send_social_packet_blocking(host: String, port: u16, packet: serde_json::Value) -> Result<(), String> {
     use std::{io::Write, net::{TcpStream, ToSocketAddrs}, time::Duration};
     let host = host.trim();
@@ -1273,7 +1288,8 @@ pub fn run() {
             restore_game_instance_backup,
             read_instance_log,
             start_social_listener,
-            send_social_packet
+            send_social_packet,
+            detect_local_network_address
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
