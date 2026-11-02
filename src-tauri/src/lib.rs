@@ -823,9 +823,10 @@ fn read_launch_log_tail(path: &std::path::Path) -> String {
     tail.into_iter().rev().collect::<Vec<_>>().join("\n")
 }
 
-fn launch_offline_profile_blocking(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
+fn launch_offline_profile_blocking(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>, app: tauri::AppHandle) -> Result<u32, String> {
     use mc_launcher_core::prelude::*;
     use std::{fs::OpenOptions, process::{Command, Stdio}, thread, time::{Duration, Instant}};
+    use tauri::Emitter;
     use std::io::Write;
 
     if username.len() < 3 || username.len() > 16 || !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
@@ -895,7 +896,7 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
 
     let java_bin_dir = java_path.parent().ok_or("Cartella Java non valida")?;
     let java_home = java_bin_dir.parent().unwrap_or(java_bin_dir);
-    let mut command = Command::new(&launch.executable);
+    let mut command = Command::new(&java_path);
     command.args(&launch_args)
         .current_dir(&launch.working_dir)
         .env("JAVA_HOME", java_home)
@@ -910,15 +911,41 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
     let pid = child.id();
     let started = Instant::now();
     loop {
-        match child.try_wait().map_err(|e| format!("Impossibile controllare Minecraft: {e}"))? {
+        match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) => {
                 let details = read_launch_log_tail(&log_path);
-                return Err(format!("Minecraft si è chiuso subito (codice {}).\n\nUltime righe del log:\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
+                return Err(format!("Minecraft si è chiuso subito (codice {}).\\n\\nUltime righe del log:\\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
             }
             None if started.elapsed() >= Duration::from_secs(8) => break,
             None => thread::sleep(Duration::from_millis(250)),
         }
     }
+
+    let app_for_monitor = app.clone();
+    let log_for_monitor = log_path.clone();
+    thread::spawn(move || loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let _ = app_for_monitor.emit("nova-game-exited", serde_json::json!({
+                    "pid": pid,
+                    "code": status.code(),
+                    "success": status.success(),
+                    "logTail": read_launch_log_tail(&log_for_monitor)
+                }));
+                break;
+            }
+            Ok(None) => thread::sleep(Duration::from_secs(2)),
+            Err(error) => {
+                let _ = app_for_monitor.emit("nova-game-exited", serde_json::json!({
+                    "pid": pid,
+                    "success": false,
+                    "error": error.to_string(),
+                    "logTail": read_launch_log_tail(&log_for_monitor)
+                }));
+                break;
+            }
+        }
+    });
     Ok(pid)
 }
 
@@ -1187,8 +1214,8 @@ async fn install_game_profile(game_version: String, loader: String, loader_versi
     tauri::async_runtime::spawn_blocking(move || install_game_profile_blocking(game_version, loader, loader_version, java_executable, instance_path)).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
-async fn launch_offline_profile(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
-    tauri::async_runtime::spawn_blocking(move || launch_offline_profile_blocking(version_id, instance_path, username, ram_gb, java_executable)).await.map_err(|e| e.to_string())?
+async fn launch_offline_profile(app: tauri::AppHandle, version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
+    tauri::async_runtime::spawn_blocking(move || launch_offline_profile_blocking(version_id, instance_path, username, ram_gb, java_executable, app)).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
 async fn install_java_runtime(major: u32) -> Result<String, String> {
