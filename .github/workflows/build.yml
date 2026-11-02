@@ -41,9 +41,6 @@ jobs:
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev patchelf libayatana-appindicator3-dev
-      - run: gradle --no-daemon -p nova-hud build
-      - name: Embed compiled NOVA HUD
-        run: node scripts/embed-hud.mjs
       - run: npm install
       - name: Generate desktop bundle icons
         run: node scripts/generate-icons.mjs
