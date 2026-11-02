@@ -397,7 +397,7 @@ fn start_social_listener_blocking(app: tauri::AppHandle, port: u16) -> Result<u1
             Ok((stream, remote)) => {
                 let app = app.clone();
                 thread::spawn(move || {
-                    use std::io::{BufRead, BufReader};
+                    use std::io::{BufRead, BufReader, Read};
                     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
                     let mut reader = BufReader::new(stream);
                     let mut line = String::new();
@@ -409,11 +409,14 @@ fn start_social_listener_blocking(app: tauri::AppHandle, port: u16) -> Result<u1
                     let sender_id = packet.get("senderId").and_then(|v| v.as_str()).unwrap_or("");
                     let sender_name = packet.get("senderName").and_then(|v| v.as_str()).unwrap_or("");
                     if sender_id.is_empty() || sender_id.len() > 96 || sender_name.trim().is_empty() || sender_name.len() > 32 { return; }
+                    let remote_host = remote.ip().to_string();
+                    let sender_host = packet.get("senderHost").and_then(|v| v.as_str())
+                        .filter(|v| !v.is_empty() && v.len() <= 255).unwrap_or(remote_host.as_str());
                     let mut safe = serde_json::json!({
                         "kind": kind,
                         "senderId": sender_id,
                         "senderName": sender_name,
-                        "senderHost": packet.get("senderHost").and_then(|v| v.as_str()).filter(|v| !v.is_empty() && v.len() <= 255).unwrap_or(&remote.ip().to_string()),
+                        "senderHost": sender_host,
                         "senderPort": packet.get("senderPort").and_then(|v| v.as_u64()).filter(|v| *v > 0 && *v <= 65535).unwrap_or(47821),
                         "createdAt": packet.get("createdAt").and_then(|v| v.as_u64()).unwrap_or(0)
                     });
