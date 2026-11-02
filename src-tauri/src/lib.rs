@@ -702,67 +702,121 @@ fn install_game_profile_blocking(game_version: String, loader: String, loader_ve
     Ok(result.version_id)
 }
 
+fn java_major_for_profile(version_id: &str, declared_major: Option<u32>) -> u32 {
+    if let Some(major) = declared_major { return major; }
+    let parts: Vec<u32> = version_id.split('.').filter_map(|part| part.parse().ok()).collect();
+    let minor = parts.get(1).copied().unwrap_or(0);
+    let patch = parts.get(2).copied().unwrap_or(0);
+    if parts.first().copied().unwrap_or(1) >= 26 { 25 }
+    else if minor <= 16 { 8 }
+    else if minor == 17 { 16 }
+    else if minor >= 21 || (minor == 20 && patch >= 5) { 21 }
+    else { 17 }
+}
+
+fn read_launch_log_tail(path: &std::path::Path) -> String {
+    let content = fs::read_to_string(path).unwrap_or_default();
+    let tail = content.lines().rev().take(35).collect::<Vec<_>>();
+    tail.into_iter().rev().collect::<Vec<_>>().join("\n")
+}
+
 fn launch_offline_profile_blocking(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
     use mc_launcher_core::prelude::*;
-    use std::{fs::OpenOptions, process::{Command, Stdio}};
+    use std::{fs::OpenOptions, process::{Command, Stdio}, thread, time::{Duration, Instant}};
+    use std::io::Write;
+
     if username.len() < 3 || username.len() > 16 || !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
         return Err("Nome giocatore non valido: usa 3-16 caratteri alfanumerici o underscore".into());
     }
     if !(2..=32).contains(&ram_gb) { return Err("RAM non valida (2-32 GB)".into()); }
-    let game_dir = PathBuf::from(&instance_path);
+
+    let game_dir = PathBuf::from(&instance_path).canonicalize().map_err(|e| format!("Cartella istanza non accessibile: {e}"))?;
+    let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    if !game_dir.starts_with(&instances_root) { return Err("L'istanza selezionata non si trova nella cartella NOVA".into()); }
     let metadata_path = game_dir.join("nova-instance.json");
     if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
     let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
         .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
     if metadata["profileId"].as_str() != Some(version_id.as_str()) {
-        return Err("Il profilo selezionato non corrisponde a quello installato in questa istanza. Reinstalla il profilo o seleziona l'istanza corretta.".into());
+        return Err("Il profilo non risulta installato in questa istanza. Premi prima «Installa profilo completo».".into());
     }
+
     let root = minecraft_dir().map_err(|e| e.to_string())?;
     let launcher = Launcher::new(&root);
-    let version = launcher.load_version(&version_id).map_err(|e| format!("Profilo non installato o incompleto: {e}"))?;
-    let required_java = version.java_version.as_ref().map(|value| value.major_version as u32);
+    let version = launcher.load_version(&version_id).map_err(|e| format!("Profilo Minecraft incompleto: {e}. Torna al Launcher e reinstalla il profilo."))?;
+    let required_java = java_major_for_profile(&version_id, version.java_version.as_ref().map(|value| value.major_version as u32));
     let runtimes = detect_java_runtimes();
     let java_path = if let Some(explicit) = java_executable {
-        let selected = runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(explicit.as_str()));
-        if let (Some(expected), Some(runtime)) = (required_java, selected) {
-            if runtime.major != Some(expected) {
-                return Err(format!("Questa versione richiede Java {expected}, ma il runtime selezionato è {}.", runtime.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
-            }
+        let selected = runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(explicit.as_str()))
+            .ok_or("Il Java selezionato non è più disponibile. Rileva di nuovo Java e selezionalo di nuovo.")?;
+        if selected.major != Some(required_java) {
+            return Err(format!("Minecraft {version_id} richiede Java {required_java}; hai selezionato Java {}. Seleziona o installa Java {required_java}.", selected.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
         }
         PathBuf::from(explicit)
     } else if let Some(existing) = runtimes.into_iter()
-        .find(|runtime| runtime.available && (required_java.is_none() || runtime.major == required_java))
+        .find(|runtime| runtime.available && runtime.major == Some(required_java))
         .and_then(|runtime| runtime.executable.map(PathBuf::from)) {
         existing
     } else {
-        let major = required_java.unwrap_or(21);
-        PathBuf::from(install_java_runtime_blocking(major)
-            .map_err(|e| format!("Java {major} non trovato; download automatico non riuscito: {e}"))?)
+        PathBuf::from(install_java_runtime_blocking(required_java)
+            .map_err(|e| format!("Serve Java {required_java}; download automatico non riuscito: {e}"))?)
     };
+    if !java_path.is_file() { return Err(format!("Eseguibile Java non trovato: {}", java_path.display())); }
+
     let options = LaunchOptions {
-        account: Account::offline(username),
-        java_executable: Some(java_path),
+        account: Account::offline(username.clone()),
+        java_executable: Some(java_path.clone()),
         game_directory: Some(game_dir.clone()),
         ..Default::default()
     };
     let launch = launcher.build_launch_command_from_version(&version, options)
         .map_err(|e| format!("Preparazione comando Java fallita: {e}"))?;
+    if launch.args.is_empty() { return Err("Il comando di avvio Minecraft è vuoto. Reinstalla il profilo.".into()); }
+
     let log_path = game_dir.join("nova-game.log");
-    let log = OpenOptions::new().create(true).append(true).open(log_path).map_err(|e| e.to_string())?;
-    let error_log = log.try_clone().map_err(|e| e.to_string())?;
+    let mut log = OpenOptions::new().create(true).write(true).truncate(true).open(&log_path)
+        .map_err(|e| format!("Impossibile creare il log di Minecraft: {e}"))?;
+    writeln!(log, "NOVA CLIENT launch diagnostic").ok();
+    writeln!(log, "Profile: {version_id} | Player: {username} | Java {required_java}").ok();
+    writeln!(log, "Java: {}", java_path.display()).ok();
+    writeln!(log, "Working directory: {}", launch.working_dir.display()).ok();
+    drop(log);
+
     let mut launch_args = launch.args.clone();
     let main_class = version.main_class.as_deref().unwrap_or("");
+    if main_class.is_empty() { return Err("Il profilo non contiene la main class Minecraft.".into()); }
     let main_index = launch_args.iter().position(|arg| arg == main_class)
-        .ok_or("Main class non trovato negli argomenti di avvio")?;
+        .ok_or("Main class non trovato nel comando Java generato. Reinstalla la versione Minecraft.")?;
     launch_args.insert(main_index, format!("-Xmx{}G", ram_gb));
+    launch_args.insert(main_index, "-Xms512M".to_string());
+
+    let java_bin_dir = java_path.parent().ok_or("Cartella Java non valida")?;
+    let java_home = java_bin_dir.parent().unwrap_or(java_bin_dir);
     let mut command = Command::new(&launch.executable);
     command.args(&launch_args)
         .current_dir(&launch.working_dir)
-        .stdout(Stdio::from(log))
-        .stderr(Stdio::from(error_log));
+        .env("JAVA_HOME", java_home)
+        .stdout(Stdio::from(OpenOptions::new().append(true).open(&log_path).map_err(|e| e.to_string())?))
+        .stderr(Stdio::from(OpenOptions::new().append(true).open(&log_path).map_err(|e| e.to_string())?));
+    let mut paths = vec![java_bin_dir.to_path_buf()];
+    if let Some(existing) = env::var_os("PATH") { paths.extend(env::split_paths(&existing)); }
+    command.env("PATH", env::join_paths(paths).map_err(|e| format!("PATH Java non valido: {e}"))?);
     for (key, value) in launch.env { command.env(key, value); }
-    let child = command.spawn().map_err(|e| format!("Avvio Minecraft non riuscito: {e}. Controlla Java e il log dell'istanza."))?;
-    Ok(child.id())
+
+    let mut child = command.spawn().map_err(|e| format!("Impossibile avviare Java: {e}. Verifica il runtime selezionato e il percorso Java."))?;
+    let pid = child.id();
+    let started = Instant::now();
+    loop {
+        match child.try_wait().map_err(|e| format!("Impossibile controllare Minecraft: {e}"))? {
+            Some(status) => {
+                let details = read_launch_log_tail(&log_path);
+                return Err(format!("Minecraft si è chiuso subito (codice {}).\n\nUltime righe del log:\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
+            }
+            None if started.elapsed() >= Duration::from_secs(8) => break,
+            None => thread::sleep(Duration::from_millis(250)),
+        }
+    }
+    Ok(pid)
 }
 
 
