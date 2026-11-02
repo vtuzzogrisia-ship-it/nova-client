@@ -113,9 +113,30 @@ fn install_modrinth_project(project_id: String, game_version: String, loader: St
         if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
         root.join("mods")
     } else { minecraft_dir()?.join("mods") };
+    let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{}/version", project_id))
+        .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
+        .send().map_err(|e| format!("Modrinth non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| e.to_string())?;
+    let latest = versions.first().ok_or("Nessuna versione compatibile trovata")?;
+    let files = latest["files"].as_array().ok_or("File versione Modrinth mancanti")?;
+    let latest_filename = files.iter().find(|file| file["primary"].as_bool() == Some(true)).or_else(|| files.first())
+        .and_then(|file| file["filename"].as_str()).ok_or("Nome file mod mancante")?.to_string();
     let mut visited = std::collections::HashSet::new();
     let mut installed = Vec::new();
     install_modrinth_recursive(&client, &project_id, &game_version, &loader, &dir, &mut visited, &mut installed)?;
+    let manifest_path = dir.join(".nova-mods.json");
+    let mut manifest: serde_json::Value = if manifest_path.is_file() {
+        serde_json::from_slice(&fs::read(&manifest_path).map_err(|e| e.to_string())?).unwrap_or_else(|_| serde_json::json!({}))
+    } else { serde_json::json!({}) };
+    if let Some(old_filename) = manifest[&project_id].as_str() {
+        if old_filename != latest_filename && old_filename.ends_with(".jar") {
+            let old_path = dir.join(old_filename);
+            if old_path.is_file() { fs::remove_file(old_path).map_err(|e| e.to_string())?; }
+        }
+    }
+    manifest[&project_id] = serde_json::json!(latest_filename);
+    fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())?;
     Ok(installed)
 }
 
@@ -155,6 +176,39 @@ fn flatten_description(value: &serde_json::Value) -> String {
         }
         _ => String::new(),
     }
+}
+
+
+#[tauri::command]
+fn check_modrinth_mod_updates(instance_path: Option<String>, game_version: String, loader: String) -> Result<Vec<serde_json::Value>, String> {
+    let dir = if let Some(path) = instance_path {
+        let root = PathBuf::from(path);
+        if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+        root.join("mods")
+    } else { minecraft_dir()?.join("mods") };
+    let manifest_path = dir.join(".nova-mods.json");
+    if !manifest_path.is_file() { return Ok(Vec::new()); }
+    let manifest: serde_json::Value = serde_json::from_slice(&fs::read(manifest_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Manifest mod NOVA non valido: {e}"))?;
+    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (mod updates)").build().map_err(|e| e.to_string())?;
+    let mut updates = Vec::new();
+    if let Some(mods) = manifest.as_object() {
+        for (project_id, current_file) in mods {
+            let current_file = current_file.as_str().unwrap_or("");
+            let versions: Vec<serde_json::Value> = client.get(format!("https://api.modrinth.com/v2/project/{project_id}/version"))
+                .query(&[("game_versions", format!("[\"{}\"]", game_version)), ("loaders", format!("[\"{}\"]", loader))])
+                .send().map_err(|e| format!("Controllo aggiornamenti Modrinth fallito: {e}"))?
+                .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| e.to_string())?;
+            if let Some(latest) = versions.first() {
+                let latest_file = latest["files"].as_array().and_then(|files| files.iter().find(|f| f["primary"].as_bool() == Some(true)).or_else(|| files.first()))
+                    .and_then(|f| f["filename"].as_str()).unwrap_or("");
+                if !latest_file.is_empty() && latest_file != current_file {
+                    updates.push(serde_json::json!({"projectId":project_id,"currentFile":current_file,"latestFile":latest_file,"versionId":latest["id"]}));
+                }
+            }
+        }
+    }
+    Ok(updates)
 }
 
 #[tauri::command]
@@ -931,6 +985,7 @@ pub fn run() {
             get_minecraft_mods_path,
             list_installed_mods,
             install_modrinth_project,
+            check_modrinth_mod_updates,
             remove_installed_mod,
             ping_minecraft_server,
             detect_java_runtimes,
