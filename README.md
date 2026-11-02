@@ -8,11 +8,11 @@ The repository now contains a Tauri 2 desktop launcher with a React interface an
 
 ## Launcher implementation status
 
-The desktop launcher now uses `mc-launcher-core` for complete vanilla/Fabric/Quilt/Forge/NeoForge profile installation, including client libraries, assets and native files, and for structured offline Java launch commands. Java discovery is available through `JAVA_HOME` and `PATH`. Instances have separate mods, resource packs, shader packs, config and saves folders. Modrinth installs resolve required dependencies recursively and verify SHA-1 hashes. ZIP resource/shader packs can be imported and activated per instance; Fabric instances also install Iris and Sodium to support shader packs.
+The desktop launcher now uses `mc-launcher-core` for complete vanilla/Fabric/Quilt/Forge/NeoForge profile installation, including client libraries, assets and native files, and for structured offline Java launch commands. Java discovery checks `JAVA_HOME`, `PATH` and NOVA-managed runtimes; Java 17 and 21 can also be downloaded into NOVA runtime storage. Instances have separate mods, resource packs, shader packs, config and saves folders. Modrinth installs resolve required dependencies recursively and verify SHA-1 hashes. ZIP resource/shader packs can be imported and activated per instance; Fabric instances also install Iris and Sodium to support shader packs.
 
 The bundled NOVA in-game HUD is a separate Fabric mod targeting **Minecraft 1.21.4**. It renders FPS, CPS, keystrokes and coordinates in the actual game window, with a Right Shift menu and F6-F9 display toggles. The desktop build compiles and embeds this JAR automatically. The HUD is not currently bundled for other Minecraft versions or Forge/NeoForge.
 
-Offline launch uses a local player name and does not authenticate to premium online-mode servers. Microsoft sign-in is intentionally excluded. Java runtime discovery is implemented, but NOVA does not yet download and manage Java runtimes automatically. A Java installation compatible with the selected Minecraft version is required.
+Offline launch uses a local player name and does not authenticate to premium online-mode servers. Microsoft sign-in is intentionally excluded. Java 17 and 21 can be installed into NOVA runtime storage and selected for launch. A compatible runtime is required for each Minecraft version.
 
 ## Development
 
