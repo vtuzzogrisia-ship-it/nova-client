@@ -4,5 +4,6 @@
   "key.nova_hud.fps": "Mostra/nascondi FPS",
   "key.nova_hud.cps": "Mostra/nascondi CPS",
   "key.nova_hud.keystrokes": "Mostra/nascondi tasti",
-  "key.nova_hud.coordinates": "Mostra/nascondi coordinate"
+  "key.nova_hud.coordinates": "Mostra/nascondi coordinate",
+  "key.nova_hud.sprint": "Mostra/nascondi toggle sprint"
 }

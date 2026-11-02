@@ -4,5 +4,6 @@
   "key.nova_hud.fps": "Toggle FPS display",
   "key.nova_hud.cps": "Toggle CPS counter",
   "key.nova_hud.keystrokes": "Toggle keystrokes",
-  "key.nova_hud.coordinates": "Toggle coordinates"
+  "key.nova_hud.coordinates": "Toggle coordinates",
+  "key.nova_hud.sprint": "Toggle automatic sprint"
 }

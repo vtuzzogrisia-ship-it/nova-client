@@ -957,7 +957,7 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
         match child.try_wait().map_err(|e| e.to_string())? {
             Some(status) => {
                 let details = read_launch_log_tail(&log_path);
-                return Err(format!("Minecraft si è chiuso subito (codice }).\n\nUltime righe del log:\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
+                return Err(format!("Minecraft si è chiuso subito (codice {}).\n\nUltime righe del log:\n{}", status.code().map(|v| v.to_string()).unwrap_or_else(|| "non disponibile".into()), details));
             }
             None if started.elapsed() >= Duration::from_secs(8) => break,
             None => thread::sleep(Duration::from_millis(250)),
@@ -1286,6 +1286,222 @@ async fn read_instance_log(instance_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || read_instance_log_blocking(instance_path)).await.map_err(|e| e.to_string())?
 }
 
+fn repair_game_instance_blocking(instance_path: String) -> Result<String, String> {
+    let instances_root = minecraft_dir()?.join("nova-instances").canonicalize().map_err(|_| "Cartella istanze NOVA non trovata")?;
+    let instance = PathBuf::from(&instance_path).canonicalize().map_err(|e| format!("Percorso non valido: {e}"))?;
+    if !instance.starts_with(&instances_root) || !instance.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non riconosciuta per la riparazione".into());
+    }
+    let metadata_path = instance.join("nova-instance.json");
+    let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+
+    let version = metadata["version"].as_str().ok_or("Versione mancante nei metadati")?.to_string();
+    let loader = metadata["loader"].as_str().ok_or("Loader mancante nei metadati")?.to_string();
+
+    for sub in &["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
+        fs::create_dir_all(instance.join(sub)).map_err(|e| e.to_string())?;
+    }
+
+    let profile_id = install_game_profile_blocking(version.clone(), loader.clone(), None, None, Some(instance_path.clone()))?;
+
+    if loader == "fabric" && version == "1.21.4" {
+        use base64::Engine;
+        let mods_dir = instance.join("mods");
+        let client = reqwest::blocking::Client::builder()
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .map_err(|e| e.to_string())?;
+        let _ = install_modrinth_recursive(&client, "P7dR8mAc", &version, &loader, &mods_dir, &mut std::collections::HashSet::new(), &mut Vec::new());
+        let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
+        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
+            if bytes.starts_with(b"PK") {
+                let _ = fs::write(mods_dir.join("nova-hud.jar"), bytes);
+            }
+        }
+    }
+
+    Ok(format!("Riparazione completata per l'istanza. Profilo {profile_id} reinstallato e verificato."))
+}
+
+#[tauri::command]
+async fn repair_game_instance(instance_path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || repair_game_instance_blocking(instance_path))
+        .await.map_err(|e| e.to_string())?
+}
+
+fn install_curseforge_mod_blocking(
+    mod_id: u32,
+    file_id: Option<u32>,
+    game_version: String,
+    loader: String,
+    instance_path: Option<String>,
+    api_key: Option<String>,
+) -> Result<String, String> {
+    let mods_dir = if let Some(path) = instance_path {
+        let root = PathBuf::from(path);
+        if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+        root.join("mods")
+    } else {
+        minecraft_dir()?.join("mods")
+    };
+    fs::create_dir_all(&mods_dir).map_err(|e| e.to_string())?;
+
+    let key = api_key.unwrap_or_default();
+    if key.trim().is_empty() {
+        return Err("CurseForge richiede una API Key valida per scaricare i file dei progetti.".into());
+    }
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(45))
+        .build().map_err(|e| e.to_string())?;
+
+    let download_url: String;
+    let filename: String;
+
+    if let Some(fid) = file_id {
+        let file_info: serde_json::Value = client.get(format!("https://api.curseforge.com/v1/mods/{mod_id}/files/{fid}"))
+            .header("x-api-key", key.trim())
+            .send().map_err(|e| format!("Connessione CurseForge fallita: {e}"))?
+            .error_for_status().map_err(|e| format!("Errore CurseForge: {e}"))?
+            .json().map_err(|e| e.to_string())?;
+
+        let data = &file_info["data"];
+        filename = data["fileName"].as_str().ok_or("Nome file non disponibile")?.to_string();
+        download_url = data["downloadUrl"].as_str().ok_or("URL download non disponibile per questo file")?.to_string();
+    } else {
+        let mod_loader_type = match loader.as_str() {
+            "fabric" => "4",
+            "forge" => "1",
+            "neoforge" => "6",
+            "quilt" => "5",
+            _ => "0",
+        };
+        let files_info: serde_json::Value = client.get(format!("https://api.curseforge.com/v1/mods/{mod_id}/files"))
+            .query(&[("gameVersion", game_version.as_str()), ("modLoaderType", mod_loader_type), ("pageSize", "10")])
+            .header("x-api-key", key.trim())
+            .send().map_err(|e| format!("Ricerca file CurseForge fallita: {e}"))?
+            .error_for_status().map_err(|e| format!("Errore CurseForge: {e}"))?
+            .json().map_err(|e| e.to_string())?;
+
+        let files = files_info["data"].as_array().ok_or("Nessun file trovato per questa versione")?;
+        let candidate = files.iter().find(|f| f["downloadUrl"].as_str().is_some()).or_else(|| files.first())
+            .ok_or("Nessun file compatibile trovato")?;
+
+        filename = candidate["fileName"].as_str().ok_or("Nome file non disponibile")?.to_string();
+        download_url = candidate["downloadUrl"].as_str()
+            .ok_or("Il creatore della mod ha disabilitato il download diretto di terze parti su CurseForge. Apri il progetto per scaricarlo manualmente.")?.to_string();
+    }
+
+    if !filename.ends_with(".jar") || filename.contains('/') || filename.contains('\\') {
+        return Err("Nome file mod non sicuro o non .jar".into());
+    }
+
+    let bytes = client.get(&download_url)
+        .send().map_err(|e| format!("Download fallito: {e}"))?
+        .error_for_status().map_err(|e| format!("Download rifiutato dal server: {e}"))?
+        .bytes().map_err(|e| format!("Errore lettura byte: {e}"))?;
+
+    let dest = mods_dir.join(&filename);
+    fs::write(&dest, &bytes).map_err(|e| format!("Impossibile salvare il file: {e}"))?;
+    Ok(filename)
+}
+
+#[tauri::command]
+async fn install_curseforge_mod(
+    mod_id: u32,
+    file_id: Option<u32>,
+    game_version: String,
+    loader: String,
+    instance_path: Option<String>,
+    api_key: Option<String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || install_curseforge_mod_blocking(mod_id, file_id, game_version, loader, instance_path, api_key))
+        .await.map_err(|e| e.to_string())?
+}
+
+fn verify_instance_files_blocking(instance_path: String) -> Result<serde_json::Value, String> {
+    let root = PathBuf::from(&instance_path);
+    if !root.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non riconosciuta".into());
+    }
+    let mods_dir = root.join("mods");
+    let mut verified = 0;
+    let mut corrupted = Vec::new();
+    if mods_dir.is_dir() {
+        if let Ok(entries) = fs::read_dir(&mods_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().and_then(|x| x.to_str()) == Some("jar") {
+                    let file_name = path.file_name().and_then(|x| x.to_str()).unwrap_or("unknown").to_string();
+                    if let Ok(bytes) = fs::read(&path) {
+                        if bytes.len() > 4 && bytes.starts_with(b"PK") {
+                            verified += 1;
+                        } else {
+                            corrupted.push(file_name);
+                        }
+                    } else {
+                        corrupted.push(file_name);
+                    }
+                }
+            }
+        }
+    }
+    Ok(serde_json::json!({
+        "verifiedCount": verified,
+        "corruptedFiles": corrupted
+    }))
+}
+
+#[tauri::command]
+async fn verify_instance_files(instance_path: String) -> Result<serde_json::Value, String> {
+    tauri::async_runtime::spawn_blocking(move || verify_instance_files_blocking(instance_path))
+        .await.map_err(|e| e.to_string())?
+}
+
+fn update_all_modrinth_mods_blocking(
+    instance_path: String,
+    game_version: String,
+    loader: String,
+) -> Result<Vec<String>, String> {
+    let updates = check_modrinth_mod_updates_blocking(instance_path.clone(), game_version.clone(), loader.clone())?;
+    let mut updated = Vec::new();
+    for update in updates {
+        if let Ok(installed_files) = install_modrinth_project_blocking(update.project_id, game_version.clone(), loader.clone(), Some(instance_path.clone())) {
+            updated.extend(installed_files);
+        }
+    }
+    Ok(updated)
+}
+
+#[tauri::command]
+async fn update_all_modrinth_mods(
+    instance_path: String,
+    game_version: String,
+    loader: String,
+) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || update_all_modrinth_mods_blocking(instance_path, game_version, loader))
+        .await.map_err(|e| e.to_string())?
+}
+
+fn clear_instance_log_blocking(instance_path: String) -> Result<(), String> {
+    let root = PathBuf::from(&instance_path);
+    if !root.join("nova-instance.json").is_file() {
+        return Err("Istanza NOVA non valida".into());
+    }
+    let log_file = root.join("nova-game.log");
+    if log_file.is_file() {
+        let _ = fs::write(log_file, "");
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn clear_instance_log(instance_path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || clear_instance_log_blocking(instance_path))
+        .await.map_err(|e| e.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -1294,12 +1510,16 @@ pub fn run() {
             list_installed_mods,
             install_modrinth_project,
             check_modrinth_mod_updates,
+            update_all_modrinth_mods,
             remove_installed_mod,
             ping_minecraft_server,
             detect_java_runtimes,
             list_minecraft_versions,
             install_vanilla_version,
             create_game_instance,
+            repair_game_instance,
+            verify_instance_files,
+            install_curseforge_mod,
             list_instance_packs,
             install_instance_shader_support,
             install_modrinth_modpack,
@@ -1315,6 +1535,7 @@ pub fn run() {
             list_instance_backups,
             restore_game_instance_backup,
             read_instance_log,
+            clear_instance_log,
             start_social_listener,
             send_social_packet,
             detect_local_network_address

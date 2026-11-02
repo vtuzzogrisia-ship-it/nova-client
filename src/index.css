@@ -107,3 +107,35 @@ button.friend-list-row{cursor:pointer}
 .social-note strong{font-size:10px;color:#d4c8ec}
 .social-note p{font-size:10px;line-height:1.6;color:#94939e;margin:6px 0 0}
 @media(max-width:760px){.social-setup{flex-direction:column}.social-grid{grid-template-columns:1fr}.social-friends{min-height:0}.social-chat{min-height:370px}.friend-invite-form{grid-template-columns:1fr}.friend-invite-form .social-card-head,.friend-invite-form .text-btn{grid-column:auto}}
+
+/* --- NOVA Enhancements & Polish --- */
+.section-subtitle{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hint-text{font-size:11px;color:#8f8e99;line-height:1.5;margin-top:5px}
+.instance-info-badge{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:8px 12px;background:#181820;border:1px solid #2e2f3a;border-radius:8px;font-size:11px;color:#a5a4b2;margin:8px 0}
+.instance-info-badge code{background:#111116;padding:2px 6px;border-radius:4px;color:#c0a9ff}
+.badge-ok{display:inline-flex;align-items:center;gap:5px;color:#6ee7b7;font-weight:600}
+.badge-warn{display:inline-flex;align-items:center;gap:5px;color:#fcd34d;font-weight:600}
+.launch-section-box{background:#1a1924;border:1px solid #363249;border-radius:10px;padding:12px;margin:12px 0}
+.launch-action-btn{font-weight:700;padding:10px 18px}
+.instance-tools-bar{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid #282538}
+.verify-report-box{background:#16161e;border-left:3px solid #7c58e8;border-radius:6px;padding:9px 13px;margin:8px 0;font-size:11px}
+.corrupted-alert{color:#f87171;font-weight:600;display:block;margin-top:4px}
+.highlight-btn{color:#a78bfa !important;border-color:#5b45a0 !important}
+.highlight-btn:hover{background:#3b2d6a !important}
+.danger-hover:hover{color:#f87171 !important;border-color:#7f1d1d !important}
+.danger-btn{background:#dc2626 !important;color:#fff !important}
+.danger-btn:hover{background:#b91c1c !important}
+.danger-zone{background:#231317;border:1px solid #4d1c24;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.danger-zone span{font-size:11px;color:#fca5a5}
+.sub-list{border-top:1px solid #2a2b36;margin-top:14px;padding-top:12px}
+.import-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px}
+.upload-btn{cursor:pointer;position:relative;overflow:hidden}
+.upload-btn input{position:absolute;left:-9999px;opacity:0}
+.updates-banner{background:#1b1929;border:1px solid #4a3c75;border-radius:8px;padding:10px 12px;margin-bottom:12px}
+.server-address-code{background:#1a1b22;padding:2px 6px;border-radius:4px;font-family:monospace;color:#9b9aa8}
+.server-status-box{margin-top:4px}
+.live-pulse{display:inline-block;width:7px;height:7px;background:#10b981;border-radius:50%;margin-right:6px;box-shadow:0 0 6px #10b981}
+.row-btn-group{display:flex;gap:6px}
+.invite-inputs{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;width:100%}
+.mod-status-label{display:block;font-size:10px;color:#7e7d8c;margin-top:3px}
+@media(max-width:650px){.invite-inputs{grid-template-columns:1fr}}
