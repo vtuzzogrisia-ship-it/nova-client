@@ -383,6 +383,24 @@ fn import_instance_pack(instance_path: String, kind: String, source_path: String
     Ok(filename.to_string())
 }
 
+
+#[tauri::command]
+fn import_instance_pack_data(instance_path: String, kind: String, filename: String, data_base64: String) -> Result<String, String> {
+    use base64::Engine;
+    if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
+    if filename.is_empty() || filename.len() > 180 || filename.contains('/') || filename.contains('\\') || !filename.to_lowercase().ends_with(".zip") {
+        return Err("Seleziona un archivio .zip con nome valido".into());
+    }
+    let root = PathBuf::from(instance_path);
+    if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data_base64).map_err(|_| "File non codificato correttamente")?;
+    if bytes.len() > 512 * 1024 * 1024 { return Err("Il pacchetto supera il limite di 512 MB".into()); }
+    let destination = root.join(kind).join(&filename);
+    fs::create_dir_all(destination.parent().ok_or("Destinazione non valida")?).map_err(|e| e.to_string())?;
+    fs::write(destination, bytes).map_err(|e| e.to_string())?;
+    Ok(filename)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -397,7 +415,8 @@ pub fn run() {
             install_vanilla_version,
             create_game_instance,
             list_instance_packs,
-            import_instance_pack
+            import_instance_pack,
+            import_instance_pack_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
