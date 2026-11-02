@@ -128,13 +128,13 @@ fn install_modrinth_project(project_id: String, game_version: String, loader: St
     let mut manifest: serde_json::Value = if manifest_path.is_file() {
         serde_json::from_slice(&fs::read(&manifest_path).map_err(|e| e.to_string())?).unwrap_or_else(|_| serde_json::json!({}))
     } else { serde_json::json!({}) };
-    if let Some(old_filename) = manifest[&project_id].as_str() {
+    if let Some(old_filename) = manifest[project_id.as_str()].as_str() {
         if old_filename != latest_filename && old_filename.ends_with(".jar") {
             let old_path = dir.join(old_filename);
             if old_path.is_file() { fs::remove_file(old_path).map_err(|e| e.to_string())?; }
         }
     }
-    manifest[&project_id] = serde_json::json!(latest_filename);
+    manifest[project_id.as_str()] = serde_json::json!(latest_filename);
     fs::write(manifest_path, serde_json::to_vec_pretty(&manifest).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     Ok(installed)
