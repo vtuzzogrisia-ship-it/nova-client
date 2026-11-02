@@ -179,7 +179,7 @@ function ModLibrary() {
  const [items,setItems]=useState<CatalogItem[]>([]); const [loading,setLoading]=useState(false); const [error,setError]=useState("");
  const [installing,setInstalling]=useState<string|null>(null); const [installed,setInstalled]=useState<string[]>([]); const [modsPath,setModsPath]=useState(""); const [success,setSuccess]=useState("");
  useEffect(()=>{void invoke<string>("get_minecraft_mods_path").then(setModsPath).catch(()=>{});void invoke<string[]>("list_installed_mods").then(setInstalled).catch(()=>{});},[]);
- const installProject=async(item:CatalogItem)=>{if(source!=="modrinth")return;setInstalling(String(item.id));setError("");setSuccess("");try{const filename=await invoke<string>("install_modrinth_project",{projectId:String(item.id),gameVersion:version,loader});setInstalled(current=>current.includes(filename)?current:[...current,filename]);setSuccess("Installata correttamente: "+filename);}catch(e){setError(String(e));}finally{setInstalling(null);}};
+ const installProject=async(item:CatalogItem)=>{if(source!=="modrinth")return;setInstalling(String(item.id));setError("");setSuccess("");try{const filenames=await invoke<string[]>("install_modrinth_project",{projectId:String(item.id),gameVersion:version,loader});setInstalled(current=>Array.from(new Set([...current,...filenames])));setSuccess("Installate "+filenames.length+" mod (incluse le dipendenze richieste): "+filenames.join(", "));}catch(e){setError(String(e));}finally{setInstalling(null);}};
  const searchMods=async()=>{
   setLoading(true);setError("");setItems([]);
   try {
