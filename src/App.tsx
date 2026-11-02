@@ -121,7 +121,7 @@ function LauncherTools({ram}:{ram:number}) {
  const [installedVersionId,setInstalledVersionId]=useState("");
  const [username,setUsername]=useState("Player");
  const [instanceName,setInstanceName]=useState("NOVA");
- const [loader,setLoader]=useState("vanilla");
+ const [loader,setLoader]=useState("fabric");
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const [instancePath,setInstancePath]=useState("");
@@ -172,7 +172,7 @@ function LauncherTools({ram}:{ram:number}) {
     <div className="catalog-actions"><button className="text-btn" onClick={()=>void loadPacks("resourcepacks")} disabled={!instancePath}>Resource pack</button><button className="text-btn" onClick={()=>void loadPacks("shaderpacks")} disabled={!instancePath}>Shader</button></div>
     {packs.map(pack=><p key={pack}>{pack}</p>)}
     <label className="text-btn">Importa ZIP <input type="file" accept=".zip,application/zip" disabled={!instancePath||busy} onChange={e=>{void importPack(e.target.files?.[0]);e.currentTarget.value="";}}/></label>
-    <p>Ogni istanza ha directory dedicate per mods, resourcepacks, shaderpacks, config e mondi. La selezione del loader crea la struttura, ma non installa ancora il loader nel runtime.</p>
+    <p>Ogni istanza ha directory separate. Il modulo HUD NOVA viene aggiunto automaticamente alle istanze Fabric e Quilt; Forge/NeoForge non caricano questo modulo. Il profilo loader deve essere installato prima dell’avvio.</p>
    </div>
    {message&&<div className="library-message">{message}</div>}
   </section>
