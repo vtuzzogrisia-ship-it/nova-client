@@ -1,6 +1,7 @@
 package it.nova.client;
 
 import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudLayerRegistrationCallback;
@@ -15,6 +16,12 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Properties;
 
 public final class NovaHud implements ClientModInitializer {
     private static KeyBinding menuKey;
@@ -30,6 +37,38 @@ public final class NovaHud implements ClientModInitializer {
     private static boolean rightWasDown = false;
     private static final Deque<Long> leftClicks = new ArrayDeque<>();
     private static final Deque<Long> rightClicks = new ArrayDeque<>();
+    private static Path configPath() { return FabricLoader.getInstance().getConfigDir().resolve("nova-hud.properties"); }
+
+    private static void loadConfig() {
+        Properties config = new Properties();
+        Path path = configPath();
+        if (Files.isRegularFile(path)) {
+            try (Reader reader = Files.newBufferedReader(path)) { config.load(reader); }
+            catch (IOException ignored) { return; }
+        }
+        showFps = Boolean.parseBoolean(config.getProperty("showFps", "true"));
+        showCps = Boolean.parseBoolean(config.getProperty("showCps", "true"));
+        showKeys = Boolean.parseBoolean(config.getProperty("showKeys", "true"));
+        showCoordinates = Boolean.parseBoolean(config.getProperty("showCoordinates", "true"));
+    }
+
+    private static void saveConfig() {
+        Properties config = new Properties();
+        config.setProperty("showFps", Boolean.toString(showFps));
+        config.setProperty("showCps", Boolean.toString(showCps));
+        config.setProperty("showKeys", Boolean.toString(showKeys));
+        config.setProperty("showCoordinates", Boolean.toString(showCoordinates));
+        try {
+            Path path = configPath();
+            Files.createDirectories(path.getParent());
+            try (Writer writer = Files.newBufferedWriter(path)) { config.store(writer, "NOVA HUD settings"); }
+        } catch (IOException ignored) { /* HUD remains usable when config storage is unavailable. */ }
+    }
+
+    static void setShowFps(boolean value) { showFps = value; saveConfig(); }
+    static void setShowCps(boolean value) { showCps = value; saveConfig(); }
+    static void setShowKeys(boolean value) { showKeys = value; saveConfig(); }
+    static void setShowCoordinates(boolean value) { showCoordinates = value; saveConfig(); }
 
     @Override
     public void onInitializeClient() {
@@ -48,10 +87,10 @@ public final class NovaHud implements ClientModInitializer {
                 if (client.currentScreen instanceof NovaMenuScreen) client.setScreen(null);
                 else client.setScreen(new NovaMenuScreen());
             }
-            while (fpsKey.wasPressed()) showFps = !showFps;
-            while (cpsKey.wasPressed()) showCps = !showCps;
-            while (keysKey.wasPressed()) showKeys = !showKeys;
-            while (coordinatesKey.wasPressed()) showCoordinates = !showCoordinates;
+            while (fpsKey.wasPressed()) setShowFps(!showFps);
+            while (cpsKey.wasPressed()) setShowCps(!showCps);
+            while (keysKey.wasPressed()) setShowKeys(!showKeys);
+            while (coordinatesKey.wasPressed()) setShowCoordinates(!showCoordinates);
         });
         HudLayerRegistrationCallback.EVENT.register(layers -> layers.attachLayerAfter(
                 IdentifiedLayer.EXPERIENCE_LEVEL,
