@@ -102,7 +102,7 @@ function App() {
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); localStorage.setItem("nova.preferredLoader",profile.loader); localStorage.removeItem("nova.activeInstance"); toast(`Profilo "${profile.name}" applicato: versione, loader e RAM. Crea o seleziona la relativa istanza nel Launcher.`); setPage("home"); }}/>}
-        {page === "friends" && <FriendsChat/>}
+        <div style={{ display: page === "friends" ? "block" : "none" }}><FriendsChat/></div>
         {page === "servers" && <ServerManager/>}
         {page === "settings" && <SettingsPage ram={ram} setRam={setRam} version={version} setVersion={setVersion}/>}
       </div>
@@ -304,7 +304,7 @@ function LauncherTools({ram,version}:{ram:number;version:string}) {
   try{if(!instancePath)throw new Error("Crea o seleziona un'istanza prima di installare.");const id=await invoke<string>("install_game_profile",{gameVersion:selected,loader,loaderVersion:null,javaExecutable:javaExecutable==="auto"?null:javaExecutable,instancePath});setInstalledVersionId(id);setMessage("Installazione completata: "+id+" (librerie, asset e loader inclusi).");}
   catch(e){setMessage(String(e));}finally{setBusy(false);}
  };
- const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Log: "+instancePath+"/nova-game.log");}catch(e){setMessage(String(e));}finally{setBusy(false);}};
+ const launch=async()=>{if(!instancePath||!installedVersionId){setMessage("Crea un’istanza e installa il profilo prima di avviare.");return;}setBusy(true);setGameLog("");setMessage("Avvio Minecraft in corso…");try{const pid=await invoke<number>("launch_offline_profile",{versionId:installedVersionId,instancePath,username,ramGb:ram,javaExecutable:javaExecutable==="auto"?null:javaExecutable});setMessage("Minecraft avviato (processo "+pid+"). Se il gioco non compare, controlla il log qui sotto.");}catch(e){setMessage(String(e));try{setGameLog(await invoke<string>("read_instance_log",{instancePath}));}catch(logError){setGameLog("Impossibile leggere il log: "+String(logError));}}finally{setBusy(false);}};
  const create=async()=>{
   setBusy(true);setMessage("");
   try{const path=await invoke<string>("create_game_instance",{name:instanceName,version:selected,loader});setInstancePath(path);localStorage.setItem("nova.activeInstance",path);setInstalledVersionId(await invoke<string|null>("get_instance_profile_id",{instancePath:path})||"");await loadBackups(path);setMessage("Istanza creata e selezionata: "+path);setInstances(await invoke<GameInstanceEntry[]>("list_game_instances"));}
