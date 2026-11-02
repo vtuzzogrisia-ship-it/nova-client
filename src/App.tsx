@@ -15,11 +15,11 @@ const initialMods: Mod[] = [
   { id: "lithium", name: "Lithium", category: "Performance", description: "Ottimizza la logica interna del gioco e il tick.", enabled: true, status: "Pronto per l'integrazione" },
   { id: "ferrite", name: "FerriteCore", category: "Performance", description: "Riduce l'utilizzo della memoria.", enabled: true, status: "Pronto per l'integrazione" },
   { id: "entity", name: "Entity Culling", category: "Performance", description: "Evita il rendering delle entità non visibili.", enabled: false, status: "Pronto per l'integrazione" },
-  { id: "cps", name: "CPS Counter", category: "HUD", description: "Contatore click al secondo.", enabled: true, status: "Anteprima UI · HUD in-game non ancora collegato" },
+  { id: "cps", name: "CPS Counter", category: "HUD", description: "Contatore click al secondo.", enabled: true, status: "HUD in-game Fabric · Minecraft 1.21.4" },
   { id: "keystrokes", name: "Keystrokes", category: "HUD", description: "Mostra i tasti WASD e i click del mouse.", enabled: true, status: "Anteprima UI · HUD in-game non ancora collegato" },
   { id: "fps", name: "FPS Display", category: "HUD", description: "Visualizza gli FPS sullo schermo.", enabled: true, status: "Anteprima UI · HUD in-game non ancora collegato" },
   { id: "coords", name: "Coordinates", category: "HUD", description: "Coordinate e direzione del giocatore.", enabled: false, status: "Anteprima UI · HUD in-game non ancora collegato" },
-  { id: "sprint", name: "Toggle Sprint", category: "Gameplay", description: "Commutazione sprint configurabile.", enabled: false, status: "Richiede mod Fabric in-game" }
+  { id: "sprint", name: "Toggle Sprint", category: "Gameplay", description: "Commutazione sprint configurabile.", enabled: false, status: "Non ancora incluso nel modulo HUD NOVA" }
 ];
 
 const nav = [
