@@ -242,6 +242,7 @@ fn java_candidates() -> Vec<String> {
         values.push(PathBuf::from(value).join(if cfg!(windows) { "bin/java.exe" } else { "bin/java" }).to_string_lossy().to_string());
     }
     values.push(if cfg!(windows) { "java.exe".into() } else { "java".into() });
+    if let Ok(root) = minecraft_dir() { if let Some(installed) = find_java_binary(&root.join("nova-runtimes"), 0) { values.push(installed.to_string_lossy().to_string()); } }
     values
 }
 
@@ -523,7 +524,7 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
         let path = entry.path();
         if path.is_file() {
             let name = path.file_name()?.to_string_lossy().to_lowercase();
-            if name == if cfg!(windows) { "java.exe" } else { "java" } { return Some(path); }
+            if name == (if cfg!(windows) { "java.exe" } else { "java" }) { return Some(path); }
         } else if path.is_dir() {
             if let Some(found) = find_java_binary(&path, depth + 1) { return Some(found); }
         }
