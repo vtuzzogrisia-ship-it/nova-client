@@ -30,3 +30,5 @@
 .server-good{color:#8fe0ad!important;line-height:1.5}
 .server-error{color:#f0a3a3!important;line-height:1.5}
 @media(max-width:700px){.server-row-actions{width:100%}}
+
+.game-log{max-height:320px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:#070810;border:1px solid #ffffff12;border-radius:10px;padding:13px;color:#b9b4ca;font:11px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
