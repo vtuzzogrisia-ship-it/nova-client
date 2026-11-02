@@ -482,7 +482,20 @@ fn install_game_profile(game_version: String, loader: String, loader_version: Op
     let launcher = Launcher::new(minecraft_dir().map_err(|e| e.to_string())?);
     let _guard = INSTALL_JAVA_LOCK.lock().map_err(|_| "Blocco installazione Java non disponibile")?;
     let original_path = env::var_os("PATH");
-    if let Some(executable) = java_executable {
+    let version_parts = game_version.split('.').filter_map(|part| part.parse::<u32>().ok()).collect::<Vec<_>>();
+    let required_java = if version_parts.get(1) == Some(&17) { 16 }
+        else if version_parts.get(1).copied().unwrap_or(0) >= 21
+            || (version_parts.get(1) == Some(&20) && version_parts.get(2).copied().unwrap_or(0) >= 5) { 21 }
+        else if version_parts.get(1).copied().unwrap_or(0) >= 18 { 17 }
+        else { 8 };
+    let selected_java = if let Some(executable) = java_executable {
+        Some(executable)
+    } else {
+        detect_java_runtimes().into_iter()
+            .find(|runtime| runtime.available && runtime.major == Some(required_java))
+            .and_then(|runtime| runtime.executable)
+    };
+    if let Some(executable) = selected_java {
         if let Some(bin_dir) = PathBuf::from(executable).parent() {
             let mut paths = vec![bin_dir.to_path_buf()];
             if let Some(existing) = &original_path { paths.extend(env::split_paths(existing)); }
@@ -610,7 +623,7 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
 #[tauri::command]
 fn install_java_runtime(major: u32) -> Result<String, String> {
     use std::io::Cursor;
-    if ![8, 17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 8, 17 e 21".into()); }
+    if ![8, 16, 17, 21].contains(&major) { return Err("Sono disponibili i runtime Java 8, 16, 17 e 21".into()); }
     let os = match env::consts::OS { "windows" => "windows", "macos" => "mac", "linux" => "linux", _ => return Err("Sistema operativo non supportato per il download Java".into()) };
     let arch = match env::consts::ARCH { "x86_64" => "x64", "aarch64" => "aarch64", _ => return Err("Architettura non supportata per il download Java".into()) };
     let destination = minecraft_dir()?.join("nova-runtimes").join(format!("temurin-{major}-{os}-{arch}"));
