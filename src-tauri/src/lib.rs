@@ -484,6 +484,35 @@ fn launch_offline_profile(version_id: String, instance_path: String, username: S
     Ok(child.id())
 }
 
+
+#[tauri::command]
+fn activate_instance_pack(instance_path: String, kind: String, filename: String) -> Result<(), String> {
+    if !["resourcepacks", "shaderpacks"].contains(&kind.as_str()) { return Err("Tipo pacchetto non valido".into()); }
+    if filename.is_empty() || filename.contains('/') || filename.contains('\\') || !filename.to_lowercase().ends_with(".zip") {
+        return Err("Nome pacchetto non valido".into());
+    }
+    let root = PathBuf::from(instance_path);
+    if !root.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    if !root.join(&kind).join(&filename).is_file() { return Err("Pacchetto non trovato nell'istanza".into()); }
+    let options_path = root.join("options.txt");
+    let mut lines = if options_path.exists() {
+        fs::read_to_string(&options_path).map_err(|e| e.to_string())?.lines().map(str::to_string).collect::<Vec<_>>()
+    } else { Vec::new() };
+    if kind == "resourcepacks" {
+        let mut packs: Vec<String> = lines.iter().find_map(|line| line.strip_prefix("resourcePacks:"))
+            .and_then(|value| serde_json::from_str(value).ok()).unwrap_or_else(|| vec!["vanilla".to_string()]);
+        let pack_id = format!("file/{filename}");
+        if !packs.contains(&pack_id) { packs.push(pack_id); }
+        let serialized = serde_json::to_string(&packs).map_err(|e| e.to_string())?;
+        lines.retain(|line| !line.starts_with("resourcePacks:"));
+        lines.push(format!("resourcePacks:{serialized}"));
+    } else {
+        lines.retain(|line| !line.starts_with("shaderPack:"));
+        lines.push(format!("shaderPack:{filename}"));
+    }
+    fs::write(options_path, lines.join("\n") + "\n").map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -500,6 +529,7 @@ pub fn run() {
             list_instance_packs,
             import_instance_pack,
             import_instance_pack_data,
+            activate_instance_pack,
             install_game_profile,
             launch_offline_profile
         ])
