@@ -401,6 +401,65 @@ fn import_instance_pack_data(instance_path: String, kind: String, filename: Stri
     Ok(filename)
 }
 
+
+#[tauri::command]
+fn install_game_profile(game_version: String, loader: String, loader_version: Option<String>) -> Result<String, String> {
+    use mc_launcher_core::prelude::*;
+    if game_version.is_empty() || game_version.len() > 64 || !game_version.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') {
+        return Err("Versione Minecraft non valida".into());
+    }
+    let loader_spec = match loader.as_str() {
+        "vanilla" => None,
+        "fabric" => Some(LoaderSpec::Fabric { version: loader_version.clone().map(LoaderVersion::Exact).unwrap_or(LoaderVersion::LatestStable) }),
+        "quilt" => Some(LoaderSpec::Quilt { version: loader_version.clone().map(LoaderVersion::Exact).unwrap_or(LoaderVersion::Latest) }),
+        "forge" => Some(LoaderSpec::Forge { version: loader_version.clone().map(LoaderVersion::Exact).unwrap_or(LoaderVersion::Latest) }),
+        "neoforge" => Some(LoaderSpec::NeoForge { version: loader_version.map(LoaderVersion::Exact).unwrap_or(LoaderVersion::Latest) }),
+        _ => return Err("Mod loader non supportato".into()),
+    };
+    let launcher = Launcher::new(minecraft_dir().map_err(|e| e.to_string())?);
+    let result = launcher.install(InstallRequest {
+        minecraft_version: game_version,
+        loader: loader_spec,
+        java: JavaInstallPolicy::Never,
+    }).map_err(|e| format!("Installazione Minecraft/loader fallita: {e}"))?;
+    Ok(result.version_id)
+}
+
+#[tauri::command]
+fn launch_offline_profile(version_id: String, instance_path: String, username: String, ram_gb: u8, java_executable: Option<String>) -> Result<u32, String> {
+    use mc_launcher_core::prelude::*;
+    use std::{fs::OpenOptions, process::{Command, Stdio}};
+    if username.len() < 3 || username.len() > 16 || !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err("Nome giocatore non valido: usa 3-16 caratteri alfanumerici o underscore".into());
+    }
+    if !(2..=32).contains(&ram_gb) { return Err("RAM non valida (2-32 GB)".into()); }
+    let game_dir = PathBuf::from(&instance_path);
+    if !game_dir.join("nova-instance.json").is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let root = minecraft_dir().map_err(|e| e.to_string())?;
+    let launcher = Launcher::new(&root);
+    let version = launcher.load_version(&version_id).map_err(|e| format!("Profilo non installato o incompleto: {e}"))?;
+    let options = LaunchOptions {
+        account: Account::offline(username),
+        java_executable: java_executable.map(PathBuf::from),
+        game_directory: Some(game_dir.clone()),
+        ..Default::default()
+    };
+    let launch = launcher.build_launch_command_from_version(&version, options)
+        .map_err(|e| format!("Preparazione comando Java fallita: {e}"))?;
+    let log_path = game_dir.join("nova-game.log");
+    let log = OpenOptions::new().create(true).append(true).open(log_path).map_err(|e| e.to_string())?;
+    let error_log = log.try_clone().map_err(|e| e.to_string())?;
+    let mut command = Command::new(&launch.executable);
+    command.args(&launch.args)
+        .current_dir(&launch.working_dir)
+        .stdout(Stdio::from(log))
+        .stderr(Stdio::from(error_log));
+    for (key, value) in launch.env { command.env(key, value); }
+    command.arg(format!("-Xmx{}G", ram_gb));
+    let child = command.spawn().map_err(|e| format!("Avvio Minecraft non riuscito: {e}. Controlla Java e il log dell'istanza."))?;
+    Ok(child.id())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -416,7 +475,9 @@ pub fn run() {
             create_game_instance,
             list_instance_packs,
             import_instance_pack,
-            import_instance_pack_data
+            import_instance_pack_data,
+            install_game_profile,
+            launch_offline_profile
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
