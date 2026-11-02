@@ -542,10 +542,16 @@ fn install_java_runtime(major: u32) -> Result<String, String> {
     if let Some(existing) = find_java_binary(&destination, 0) { return Ok(existing.to_string_lossy().to_string()); }
     let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0").build().map_err(|e| e.to_string())?;
     let url = format!("https://api.adoptium.net/v3/binary/latest/{major}/ga/{os}/{arch}/jre/hotspot/normal/eclipse?project=jdk");
+    let checksum_text = client.get(format!("{url}.sha256.txt")).send().map_err(|e| format!("Checksum Java non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?.text().map_err(|e| e.to_string())?;
+    let expected = checksum_text.split_whitespace().next().ok_or("Checksum Java mancante")?.to_lowercase();
     let bytes = client.get(&url).send().map_err(|e| format!("Download Java non riuscito: {e}"))?
         .error_for_status().map_err(|e| format!("Runtime Java non disponibile: {e}"))?
         .bytes().map_err(|e| e.to_string())?;
     if bytes.len() > 512 * 1024 * 1024 { return Err("Archivio Java troppo grande".into()); }
+    use sha2::{Digest, Sha256};
+    let actual = format!("{:x}", Sha256::digest(&bytes));
+    if actual != expected { return Err("Verifica SHA-256 del runtime Java non riuscita".into()); }
     fs::create_dir_all(&destination).map_err(|e| e.to_string())?;
     #[cfg(target_os = "windows")]
     {
