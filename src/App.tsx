@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity, Box, ChevronDown, CircleHelp, Cpu,
   Gamepad2, Gauge, Globe2, Layers3, Menu, Monitor,
   Play, Search, Settings2, ShieldCheck, Sparkles,
-  X, Zap, Download, ExternalLink
+  X, Zap, Download, ExternalLink, Users, Send, MessageCircle, UserPlus, Server, Copy
 } from "lucide-react";
 
 type Mod = { id: string; name: string; category: string; description: string; enabled: boolean; status: string };
@@ -29,6 +30,7 @@ const nav = [
   { id: "mods", label: "Mod Manager", icon: Layers3 },
   { id: "library", label: "Libreria mod", icon: Download },
   { id: "profiles", label: "Profili", icon: Box },
+  { id: "friends", label: "Amici e chat", icon: Users },
   { id: "servers", label: "Server", icon: Globe2 },
   { id: "settings", label: "Impostazioni", icon: Settings2 }
 ];
@@ -100,6 +102,7 @@ function App() {
         {page === "library" && <ModLibrary/>}
         {page === "mods" && <><div className="page-title"><div className="eyebrow">CUSTOMIZE YOUR GAME</div><h1>Mod <em>Manager</em></h1><p>Gestisci e salva le preferenze del tuo client. Le modifiche restano memorizzate su questo dispositivo.</p></div><ModPanel mods={visibleMods} filter={filter} setFilter={setFilter} search={search} setSearch={setSearch} toggleMod={toggleMod}/></>}
         {page === "profiles" && <ProfileManager defaultVersion={version} defaultRam={ram} onActivate={(profile) => { setVersion(profile.version); setRam(profile.ram); localStorage.setItem("nova.preferredLoader",profile.loader); localStorage.removeItem("nova.activeInstance"); toast(`Profilo "${profile.name}" applicato: versione, loader e RAM. Crea o seleziona la relativa istanza nel Launcher.`); setPage("home"); }}/>}
+        {page === "friends" && <FriendsChat/>}
         {page === "servers" && <ServerManager/>}
         {page === "settings" && <SettingsPage ram={ram} setRam={setRam} version={version} setVersion={setVersion}/>}
       </div>
@@ -112,6 +115,156 @@ function App() {
 }
 
 
+
+
+type NovaFriend = { id: string; name: string; host: string; port: number };
+type NovaFriendRequest = { senderId: string; senderName: string; senderHost: string; senderPort: number };
+type NovaDirectMessage = { id: string; friendId: string; senderId: string; senderName: string; text: string; createdAt: number; outgoing: boolean; failed?: boolean };
+type NovaInvite = { id: string; senderId: string; senderName: string; serverName: string; serverAddress: string; createdAt: number };
+type NovaSocialPacket = { kind: string; senderId: string; senderName: string; senderHost?: string; senderPort?: number; text?: string; serverName?: string; serverAddress?: string; createdAt?: number };
+const NOVA_SOCIAL_PORT = 47821;
+const readLocal = <T,>(key: string, fallback: T): T => { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) as T : fallback; } catch { return fallback; } };
+const saveLocal = (key: string, value: unknown) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable */ } };
+const newSocialId = () => (typeof crypto !== "undefined" && "randomUUID" in crypto) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(36).slice(2);
+
+function FriendsChat() {
+ const [selfName,setSelfName]=useState(()=>localStorage.getItem("nova.playerName")||"Player");
+ const [selfHost,setSelfHost]=useState(()=>localStorage.getItem("nova.socialHost")||"");
+ const [friends,setFriends]=useState<NovaFriend[]>(()=>readLocal("nova.friends",[]));
+ const [requests,setRequests]=useState<NovaFriendRequest[]>(()=>readLocal("nova.friendRequests",[]));
+ const [messages,setMessages]=useState<NovaDirectMessage[]>(()=>readLocal("nova.messages",[]));
+ const [invites,setInvites]=useState<NovaInvite[]>(()=>readLocal("nova.serverInvites",[]));
+ const [selectedId,setSelectedId]=useState("");
+ const [friendName,setFriendName]=useState("");
+ const [friendHost,setFriendHost]=useState("");
+ const [friendPort,setFriendPort]=useState(String(NOVA_SOCIAL_PORT));
+ const [draft,setDraft]=useState("");
+ const [serverName,setServerName]=useState("");
+ const [serverAddress,setServerAddress]=useState("");
+ const [status,setStatus]=useState("Avvio rete NOVA Direct…");
+ const [busy,setBusy]=useState(false);
+ const [showAdd,setShowAdd]=useState(false);
+ const selected=friends.find(friend=>friend.id===selectedId)||friends[0];
+
+ useEffect(()=>{saveLocal("nova.friends",friends);},[friends]);
+ useEffect(()=>{saveLocal("nova.friendRequests",requests);},[requests]);
+ useEffect(()=>{saveLocal("nova.messages",messages.slice(-500));},[messages]);
+ useEffect(()=>{saveLocal("nova.serverInvites",invites.slice(-100));},[invites]);
+
+ useEffect(()=>{
+  let disposed=false;
+  let unlisten:(()=>void)|undefined;
+  void listen<NovaSocialPacket>("nova-social-packet",event=>{
+   const packet=event.payload;
+   if(!packet.senderId||packet.senderId===localStorage.getItem("nova.socialId"))return;
+   if(packet.kind==="friend_request"){
+    const request:NovaFriendRequest={senderId:packet.senderId,senderName:packet.senderName,senderHost:packet.senderHost||"",senderPort:packet.senderPort||NOVA_SOCIAL_PORT};
+    setRequests(items=>items.some(x=>x.senderId===request.senderId)?items:[...items,request]);
+    setStatus("Nuova richiesta amicizia da "+request.senderName);
+   } else if(packet.kind==="friend_accept"){
+    if(!packet.senderHost)return;
+    const friend:NovaFriend={id:packet.senderId,name:packet.senderName,host:packet.senderHost,port:packet.senderPort||NOVA_SOCIAL_PORT};
+    setFriends(items=>items.some(x=>x.id===friend.id)?items.map(x=>x.id===friend.id?friend:x):[...items,friend]);
+    setStatus(friend.name+" ha accettato la richiesta");
+   } else if(packet.kind==="chat"){
+    const friend=friends.find(x=>x.id===packet.senderId);
+    if(!friend||!packet.text)return;
+    setMessages(items=>[...items,{id:newSocialId(),friendId:friend.id,senderId:packet.senderId,senderName:packet.senderName,text:packet.text!,createdAt:packet.createdAt||Date.now(),outgoing:false}]);
+   } else if(packet.kind==="server_invite"){
+    const invite:NovaInvite={id:newSocialId(),senderId:packet.senderId,senderName:packet.senderName,serverName:packet.serverName||"Server Minecraft",serverAddress:packet.serverAddress||"",createdAt:packet.createdAt||Date.now()};
+    setInvites(items=>[invite,...items].slice(0,100));
+    setStatus("Invito server ricevuto da "+packet.senderName);
+   }
+  }).then(fn=>{if(disposed)fn();else unlisten=fn;}).catch(error=>setStatus("Listener NOVA Direct: "+String(error)));
+  void invoke<number>("start_social_listener",{port:NOVA_SOCIAL_PORT}).then(()=>{if(!disposed)setStatus("In ascolto sulla porta "+NOVA_SOCIAL_PORT);}).catch(error=>{if(!disposed)setStatus(String(error));});
+  return ()=>{disposed=true;unlisten?.();};
+ },[friends]);
+
+ useEffect(()=>{if(!selectedId&&friends[0])setSelectedId(friends[0].id);},[friends,selectedId]);
+ const ensureIdentity=()=>{
+  const name=selfName.trim();
+  if(name.length<3||name.length>16||!/^[a-zA-Z0-9_]+$/.test(name))throw new Error("Il tuo nome deve avere 3–16 caratteri: lettere, numeri o underscore.");
+  if(!selfHost.trim())throw new Error("Inserisci il tuo IP LAN o hostname raggiungibile dagli amici.");
+  localStorage.setItem("nova.playerName",name);
+  localStorage.setItem("nova.socialHost",selfHost.trim());
+  let id=localStorage.getItem("nova.socialId");
+  if(!id){id=newSocialId();localStorage.setItem("nova.socialId",id);}
+  return {name,id,host:selfHost.trim()};
+ };
+ const sendPacket=async(host:string,port:number,packet:NovaSocialPacket)=>{
+  await invoke("send_social_packet",{host,port,packet});
+ };
+ const sendRequest=async()=>{
+  setBusy(true);
+  try{
+   const me=ensureIdentity();const host=friendHost.trim();const port=Number(friendPort);
+   if(!host||host.length>255||!Number.isInteger(port)||port<1||port>65535)throw new Error("Inserisci l'indirizzo IP/host e una porta valida.");
+   const packet:NovaSocialPacket={kind:"friend_request",senderId:me.id,senderName:me.name,senderHost:me.host,senderPort:NOVA_SOCIAL_PORT,createdAt:Date.now()};
+   await sendPacket(host,port,packet);setStatus("Richiesta inviata a "+(friendName.trim()||host)+". L'amico deve accettarla.");
+   setFriendName("");setFriendHost("");setShowAdd(false);
+  }catch(error){setStatus(String(error));}finally{setBusy(false);}
+ };
+ const acceptRequest=async(request:NovaFriendRequest)=>{
+  setBusy(true);
+  try{
+   const me=ensureIdentity();
+   const packet:NovaSocialPacket={kind:"friend_accept",senderId:me.id,senderName:me.name,senderHost:me.host,senderPort:NOVA_SOCIAL_PORT,createdAt:Date.now()};
+   await sendPacket(request.senderHost,request.senderPort,packet);
+   setFriends(items=>items.some(x=>x.id===request.senderId)?items:[...items,{id:request.senderId,name:request.senderName,host:request.senderHost,port:request.senderPort}]);
+   setRequests(items=>items.filter(x=>x.senderId!==request.senderId));setSelectedId(request.senderId);setStatus("Amicizia aggiunta con "+request.senderName);
+  }catch(error){setStatus("Accettazione non riuscita: "+String(error));}finally{setBusy(false);}
+ };
+ const sendMessage=async()=>{
+  if(!selected||!draft.trim())return;
+  setBusy(true);
+  try{
+   const me=ensureIdentity();const text=draft.trim();
+   const item:NovaDirectMessage={id:newSocialId(),friendId:selected.id,senderId:me.id,senderName:me.name,text,createdAt:Date.now(),outgoing:true};
+   await sendPacket(selected.host,selected.port,{kind:"chat",senderId:me.id,senderName:me.name,senderHost:me.host,senderPort:NOVA_SOCIAL_PORT,text,createdAt:item.createdAt});
+   setMessages(items=>[...items,item]);setDraft("");setStatus("Messaggio inviato");
+  }catch(error){setStatus("Invio non riuscito: "+String(error));}finally{setBusy(false);}
+ };
+ const sendInvite=async()=>{
+  if(!selected||!serverAddress.trim())return;
+  setBusy(true);
+  try{
+   const me=ensureIdentity();
+   await sendPacket(selected.host,selected.port,{kind:"server_invite",senderId:me.id,senderName:me.name,senderHost:me.host,senderPort:NOVA_SOCIAL_PORT,serverName:serverName.trim()||"Server Minecraft",serverAddress:serverAddress.trim(),createdAt:Date.now()});
+   setStatus("Invito inviato a "+selected.name);setServerName("");setServerAddress("");
+  }catch(error){setStatus("Invito non inviato: "+String(error));}finally{setBusy(false);}
+ };
+ const acceptInvite=(invite:NovaInvite)=>{
+  const current=readLocal<{id:string;name:string;address:string}[]>("nova.servers",[]);
+  if(!current.some(x=>x.address===invite.serverAddress)){
+   saveLocal("nova.servers",[...current,{id:newSocialId(),name:invite.serverName,address:invite.serverAddress}]);
+  }
+  setInvites(items=>items.filter(x=>x.id!==invite.id));
+  setStatus("Server aggiunto ai preferiti: "+invite.serverAddress);
+ };
+ const openExternal=(text:string)=>{void navigator.clipboard?.writeText(text).then(()=>setStatus("Copiato negli appunti")).catch(()=>setStatus("Copia non disponibile"));};
+ const visibleMessages=messages.filter(item=>selected&&item.friendId===selected.id);
+ return <><div className="page-title"><div className="eyebrow">NOVA DIRECT</div><h1>Amici e <em>chat</em></h1><p>Richieste amicizia, messaggi diretti e inviti ai server Minecraft.</p></div>
+  <section className="social-setup">
+   <div className="social-identity"><div><strong>Il tuo profilo NOVA</strong><small>Nome e indirizzo usati dagli amici per contattarti</small></div><div className="social-identity-fields"><input value={selfName} onChange={e=>setSelfName(e.target.value)} placeholder="Il tuo nome NOVA" maxLength={16}/><input value={selfHost} onChange={e=>setSelfHost(e.target.value)} placeholder="Il tuo IP LAN / hostname raggiungibile"/><button className="primary-btn small-btn" onClick={()=>{try{ensureIdentity();setStatus("Profilo salvato. Porta di ascolto: "+NOVA_SOCIAL_PORT);}catch(e){setStatus(String(e));}}}>Salva</button></div><small>Porta TCP: {NOVA_SOCIAL_PORT} · Su internet serve inoltrare questa porta nel router verso il tuo PC; su LAN usate l'IP locale.</small></div>
+   <div className="social-status"><span className="social-live-dot"/>{status}</div>
+  </section>
+  <div className="social-grid">
+   <section className="social-card social-friends"><div className="social-card-head"><strong>Amici</strong><button className="text-btn" onClick={()=>setShowAdd(v=>!v)}><UserPlus size={14}/> Aggiungi</button></div>
+    {showAdd&&<div className="friend-add"><input value={friendName} onChange={e=>setFriendName(e.target.value)} placeholder="Nome amico (facoltativo)"/><input value={friendHost} onChange={e=>setFriendHost(e.target.value)} placeholder="IP o hostname dell'amico"/><input value={friendPort} onChange={e=>setFriendPort(e.target.value)} inputMode="numeric" placeholder="Porta"/><button className="primary-btn" disabled={busy} onClick={()=>void sendRequest()}>Invia richiesta</button></div>}
+    {requests.length>0&&<div className="friend-requests"><strong>Richieste ricevute ({requests.length})</strong>{requests.map(req=><div className="friend-list-row" key={req.senderId}><span><b>{req.senderName}</b><small>{req.senderHost}:{req.senderPort}</small></span><button className="text-btn" disabled={busy} onClick={()=>void acceptRequest(req)}>Accetta</button></div>)}</div>}
+    {friends.length===0?<div className="social-empty"><Users size={25}/><p>Ancora nessun amico.</p><small>Aggiungi un amico usando il suo IP e la porta NOVA Direct.</small></div>:friends.map(friend=><button className={selected?.id===friend.id?"friend-list-row selected":"friend-list-row"} key={friend.id} onClick={()=>setSelectedId(friend.id)}><span><b>{friend.name}</b><small>{friend.host}:{friend.port}</small></span><MessageCircle size={15}/></button>)}
+   </section>
+   <section className="social-card social-chat">
+    <div className="social-card-head"><strong>{selected?selected.name:"Chat"}</strong>{selected&&<span className="social-subtle">{selected.host}:{selected.port}</span>}</div>
+    <div className="chat-history">{!selected?<div className="social-empty"><MessageCircle size={24}/><p>Seleziona un amico per iniziare.</p></div>:visibleMessages.length===0?<div className="social-empty"><MessageCircle size={24}/><p>Nessun messaggio.</p><small>La chat è diretta tra i due PC.</small></div>:visibleMessages.map(message=><div className={message.outgoing?"chat-message outgoing":"chat-message"} key={message.id}><small>{message.outgoing?"Tu":message.senderName} · {new Date(message.createdAt).toLocaleString()}</small><p>{message.text}</p></div>)}</div>
+    <div className="chat-compose"><input value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")void sendMessage();}} placeholder={selected?"Scrivi un messaggio…":"Aggiungi un amico"} disabled={!selected||busy}/><button className="primary-btn" disabled={!selected||!draft.trim()||busy} onClick={()=>void sendMessage()}><Send size={15}/> Invia</button></div>
+    {selected&&<div className="friend-invite-form"><div className="social-card-head"><strong>Invita al server</strong><Server size={15}/></div><input value={serverName} onChange={e=>setServerName(e.target.value)} placeholder="Nome server"/><input value={serverAddress} onChange={e=>setServerAddress(e.target.value)} placeholder="play.example.net:25565"/><button className="text-btn" disabled={busy||!serverAddress.trim()} onClick={()=>void sendInvite()}>Invia invito server</button></div>}
+   </section>
+  </div>
+  {invites.length>0&&<section className="social-card social-invites"><div className="social-card-head"><strong>Inviti ricevuti</strong><span>{invites.length}</span></div>{invites.map(invite=><div className="friend-list-row" key={invite.id}><span><b>{invite.serverName}</b><small>Da {invite.senderName} · {invite.serverAddress}</small></span><button className="text-btn" onClick={()=>acceptInvite(invite)}>Aggiungi ai server</button></div>)}</section>}
+  <div className="social-note"><strong>Connessione diretta e limiti</strong><p>Questa prima versione usa TCP diretto: funziona su rete locale e su internet quando la porta 47821 è inoltrata nel router e il firewall Windows consente NOVA. Non richiede un server centrale, ma i messaggi non sono cifrati e non c'è ancora un servizio di presenza o matchmaking.</p></div>
+ </>;
+}
 
 type JavaRuntime = {available:boolean; executable?:string; version?:string; major?:number; error?:string};
 type MinecraftVersionEntry = {id:string;type:string;url:string};
