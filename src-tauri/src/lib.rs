@@ -994,8 +994,6 @@ fn list_game_instances() -> Result<Vec<serde_json::Value>, String> {
     Ok(result)
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub 
 #[tauri::command]
 async fn install_modrinth_project(project_id: String, game_version: String, loader: String, instance_path: Option<String>) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || install_modrinth_project_blocking(project_id, game_version, loader, instance_path)).await.map_err(|e| e.to_string())?
@@ -1058,7 +1056,8 @@ async fn read_instance_log(instance_path: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || read_instance_log_blocking(instance_path)).await.map_err(|e| e.to_string())?
 }
 
-fn run() {
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             get_minecraft_mods_path,
