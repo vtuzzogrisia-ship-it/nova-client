@@ -409,6 +409,86 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
 }
 
 
+
+#[tauri::command]
+fn install_modrinth_modpack(instance_path: String, source_path: String) -> Result<Vec<String>, String> {
+    use std::io::Read;
+    let root = PathBuf::from(instance_path);
+    let metadata_path = root.join("nova-instance.json");
+    if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let metadata: serde_json::Value = serde_json::from_slice(&fs::read(&metadata_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+    let source = PathBuf::from(source_path);
+    if !source.is_file() || source.extension().and_then(|v| v.to_str()) != Some("mrpack") {
+        return Err("Seleziona un modpack Modrinth .mrpack".into());
+    }
+    let file = fs::File::open(source).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Archivio modpack non valido: {e}"))?;
+    let manifest: serde_json::Value = {
+        let mut entry = archive.by_name("modrinth.index.json").map_err(|_| "Il file non contiene modrinth.index.json")?;
+        let mut bytes = Vec::new();
+        entry.take(4 * 1024 * 1024).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+        serde_json::from_slice(&bytes).map_err(|e| format!("Manifest modpack non valido: {e}"))?
+    };
+    if manifest["game"].as_str() != Some("minecraft") { return Err("Il modpack non è per Minecraft".into()); }
+    let dependencies = manifest["dependencies"].as_object().ok_or("Dipendenze modpack mancanti")?;
+    if dependencies.get("minecraft").and_then(|v| v.as_str()) != metadata["version"].as_str() {
+        return Err("La versione Minecraft del modpack non coincide con l'istanza selezionata".into());
+    }
+    let loader = metadata["loader"].as_str().ok_or("Loader istanza mancante")?;
+    let loader_key = match loader { "fabric" => "fabric-loader", "quilt" => "quilt-loader", "forge" => "forge", "neoforge" => "neoforge", "vanilla" => return Err("I modpack richiedono un'istanza con mod loader".into()), _ => return Err("Loader istanza non supportato".into()) };
+    if !dependencies.contains_key(loader_key) { return Err(format!("Il modpack richiede un loader diverso da {loader}")); }
+
+    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (Modrinth modpack)")
+        .build().map_err(|e| e.to_string())?;
+    let mut installed = Vec::new();
+    if let Some(files) = manifest["files"].as_array() {
+        for item in files {
+            if item["env"]["client"].as_str() == Some("unsupported") { continue; }
+            let relative = item["path"].as_str().ok_or("Percorso file modpack mancante")?;
+            if relative.contains('\\') { return Err("Percorso modpack non valido".into()); }
+            let relative_path = PathBuf::from(relative);
+            if relative_path.is_absolute() || relative_path.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
+                return Err(format!("Percorso modpack non sicuro: {relative}"));
+            }
+            let url = item["downloads"].as_array().and_then(|items| items.first()).and_then(|v| v.as_str())
+                .ok_or_else(|| format!("Download mancante per {relative}"))?;
+            if !url.starts_with("https://") { return Err(format!("URL non sicuro per {relative}")); }
+            let bytes = client.get(url).send().map_err(|e| format!("Download modpack fallito ({relative}): {e}"))?
+                .error_for_status().map_err(|e| e.to_string())?.bytes().map_err(|e| e.to_string())?;
+            if bytes.len() > 512 * 1024 * 1024 { return Err(format!("File modpack troppo grande: {relative}")); }
+            if let Some(expected) = item["hashes"]["sha1"].as_str() {
+                use sha1::{Digest, Sha1};
+                let actual = format!("{:x}", Sha1::digest(&bytes));
+                if !actual.eq_ignore_ascii_case(expected) { return Err(format!("Verifica SHA-1 fallita: {relative}")); }
+            } else { return Err(format!("Hash SHA-1 mancante: {relative}")); }
+            let destination = root.join(&relative_path);
+            if let Some(parent) = destination.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+            fs::write(&destination, &bytes).map_err(|e| format!("Scrittura modpack fallita: {e}"))?;
+            installed.push(relative.to_string());
+        }
+    }
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|e| e.to_string())?;
+        if entry.is_dir() { continue; }
+        let raw = entry.name().to_string();
+        let relative = raw.strip_prefix("overrides/").or_else(|| raw.strip_prefix("client-overrides/"));
+        let Some(relative) = relative else { continue; };
+        if relative.is_empty() || relative.contains('\\') { return Err("Percorso override non valido".into()); }
+        let relative_path = PathBuf::from(relative);
+        if relative_path.is_absolute() || relative_path.components().any(|part| !matches!(part, std::path::Component::Normal(_))) {
+            return Err(format!("Percorso override non sicuro: {relative}"));
+        }
+        if entry.size() > 512 * 1024 * 1024 { return Err(format!("Override troppo grande: {relative}")); }
+        let destination = root.join(&relative_path);
+        if let Some(parent) = destination.parent() { fs::create_dir_all(parent).map_err(|e| e.to_string())?; }
+        let mut output = fs::File::create(&destination).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut output).map_err(|e| e.to_string())?;
+        installed.push(relative.to_string());
+    }
+    Ok(installed)
+}
+
 #[tauri::command]
 fn install_instance_shader_support(instance_path: String) -> Result<Vec<String>, String> {
     let root = PathBuf::from(instance_path);
@@ -860,6 +940,7 @@ pub fn run() {
             create_game_instance,
             list_instance_packs,
             install_instance_shader_support,
+            install_modrinth_modpack,
             import_instance_pack,
             import_instance_pack_data,
             activate_instance_pack,
