@@ -29,3 +29,15 @@ Install dependencies with `npm install`, then run `npm run dev` for the Vite dev
 - Resource packs, shaders, server tools and social features
 
 The build workflow produces Windows x64 desktop installers only (`.exe` and `.msi`). Features are marked complete only after implementation and testing.
+
+## NOVA Direct (Windows)
+
+The Friends and Chat page provides a direct peer-to-peer connection between two NOVA clients. Save your NOVA display name and use **Rileva IP LAN** when both PCs are on the same local network. Share that address and send a friend request to the other PC. The receiver accepts the request; after that, both clients can exchange text messages and Minecraft server invitations. Accepting a server invitation adds that server to the recipient's saved server list.
+
+NOVA Direct listens on TCP port **47821**. On a local network, Windows Firewall must allow NOVA on the private network. To connect over the public internet, the host must configure TCP port forwarding on the router and share a reachable public IP or hostname. The LAN address detected by NOVA is not the public internet address.
+
+This is an early direct-connection implementation: there is no central NOVA account, public friend directory, presence service, relay, or matchmaking server. Direct messages are currently **not encrypted**. Only connect to people you trust and do not use this transport for sensitive information.
+
+## Minecraft launch diagnostics
+
+The launcher selects Java using the Minecraft profile's declared Java requirement and runs the selected java.exe directly. It creates the file nova-game.log inside the selected instance. If the game exits during startup, NOVA shows the exit code and recent log lines; if it exits later, the launcher receives the process-exit event and updates the log display. An offline local profile is not an authenticated Microsoft account and cannot join servers that require an authenticated premium account.
