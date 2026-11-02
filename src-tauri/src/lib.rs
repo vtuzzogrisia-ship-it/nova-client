@@ -1,4 +1,6 @@
-use std::{env, fs, path::PathBuf, sync::Mutex};
+use std::{env, fs, path::PathBuf, sync::{Mutex, OnceLock}};
+
+static SOCIAL_LISTENER_PORT: OnceLock<Mutex<Option<u16>>> = OnceLock::new();
 
 static INSTALL_JAVA_LOCK: Mutex<()> = Mutex::new(());
 
@@ -371,6 +373,104 @@ fn detect_java_runtimes() -> Vec<JavaRuntimeInfo> {
             error: Some("Java non trovato. Installa un runtime Java compatibile (Java 21 per le versioni recenti) e riprova.".into()) });
     }
     found
+}
+
+fn start_social_listener_blocking(app: tauri::AppHandle, port: u16) -> Result<u16, String> {
+    use std::{net::TcpListener, thread, time::Duration};
+    use tauri::Emitter;
+
+    if port == 0 { return Err("Porta NOVA Direct non valida".into()); }
+    let state = SOCIAL_LISTENER_PORT.get_or_init(|| Mutex::new(None));
+    let mut running = state.lock().map_err(|_| "Stato NOVA Direct non disponibile")?;
+    if let Some(current) = *running {
+        if current == port { return Ok(current); }
+        return Err(format!("NOVA Direct è già in ascolto sulla porta {current}."));
+    }
+    let listener = TcpListener::bind(("0.0.0.0", port))
+        .map_err(|e| format!("Impossibile aprire la porta {port}. Consenti NOVA nelle regole firewall di Windows. Dettagli: {e}"))?;
+    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    *running = Some(port);
+    drop(running);
+
+    thread::spawn(move || loop {
+        match listener.accept() {
+            Ok((stream, remote)) => {
+                let app = app.clone();
+                thread::spawn(move || {
+                    use std::io::{BufRead, BufReader};
+                    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                    let mut reader = BufReader::new(stream);
+                    let mut line = String::new();
+                    let _ = reader.by_ref().take(16_385).read_line(&mut line);
+                    if line.len() > 16_384 { return; }
+                    let Ok(packet) = serde_json::from_str::<serde_json::Value>(&line) else { return; };
+                    let kind = packet.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+                    if !["friend_request", "friend_accept", "chat", "server_invite"].contains(&kind) { return; }
+                    let sender_id = packet.get("senderId").and_then(|v| v.as_str()).unwrap_or("");
+                    let sender_name = packet.get("senderName").and_then(|v| v.as_str()).unwrap_or("");
+                    if sender_id.is_empty() || sender_id.len() > 96 || sender_name.trim().is_empty() || sender_name.len() > 32 { return; }
+                    let mut safe = serde_json::json!({
+                        "kind": kind,
+                        "senderId": sender_id,
+                        "senderName": sender_name,
+                        "senderHost": packet.get("senderHost").and_then(|v| v.as_str()).filter(|v| !v.is_empty() && v.len() <= 255).unwrap_or(&remote.ip().to_string()),
+                        "senderPort": packet.get("senderPort").and_then(|v| v.as_u64()).filter(|v| *v > 0 && *v <= 65535).unwrap_or(47821),
+                        "createdAt": packet.get("createdAt").and_then(|v| v.as_u64()).unwrap_or(0)
+                    });
+                    match kind {
+                        "chat" => {
+                            let Some(text) = packet.get("text").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty() && v.len() <= 2000) else { return; };
+                            safe["text"] = serde_json::json!(text);
+                        }
+                        "server_invite" => {
+                            let Some(address) = packet.get("serverAddress").and_then(|v| v.as_str()).filter(|v| !v.trim().is_empty() && v.len() <= 255) else { return; };
+                            let name = packet.get("serverName").and_then(|v| v.as_str()).unwrap_or("Minecraft server");
+                            if name.len() > 80 { return; }
+                            safe["serverAddress"] = serde_json::json!(address);
+                            safe["serverName"] = serde_json::json!(name);
+                        }
+                        _ => {}
+                    }
+                    let _ = app.emit("nova-social-packet", safe);
+                });
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(120)),
+            Err(_) => thread::sleep(Duration::from_millis(500)),
+        }
+    });
+    Ok(port)
+}
+
+fn send_social_packet_blocking(host: String, port: u16, packet: serde_json::Value) -> Result<(), String> {
+    use std::{io::Write, net::{TcpStream, ToSocketAddrs}, time::Duration};
+    let host = host.trim();
+    if host.is_empty() || host.len() > 255 || port == 0 { return Err("Indirizzo amico o porta non validi".into()); }
+    let kind = packet.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+    if !["friend_request", "friend_accept", "chat", "server_invite"].contains(&kind) {
+        return Err("Tipo messaggio NOVA Direct non valido".into());
+    }
+    let bytes = serde_json::to_vec(&packet).map_err(|e| e.to_string())?;
+    if bytes.len() > 16_384 { return Err("Il messaggio supera il limite di NOVA Direct".into()); }
+    let address = (host, port).to_socket_addrs().map_err(|e| format!("Indirizzo amico non valido: {e}"))?
+        .next().ok_or("Indirizzo amico non trovato")?;
+    let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(5))
+        .map_err(|e| format!("Connessione con {host}:{port} non riuscita. Verifica che l'amico abbia NOVA aperto e la porta consentita nel firewall. Dettagli: {e}"))?;
+    stream.set_write_timeout(Some(Duration::from_secs(5))).map_err(|e| e.to_string())?;
+    stream.write_all(&bytes).map_err(|e| format!("Invio NOVA Direct fallito: {e}"))?;
+    stream.write_all(b"\n").map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn start_social_listener(app: tauri::AppHandle, port: u16) -> Result<u16, String> {
+    tauri::async_runtime::spawn_blocking(move || start_social_listener_blocking(app, port))
+        .await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn send_social_packet(host: String, port: u16, packet: serde_json::Value) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || send_social_packet_blocking(host, port, packet))
+        .await.map_err(|e| e.to_string())?
 }
 
 fn list_minecraft_versions_blocking() -> Result<serde_json::Value, String> {
@@ -1141,7 +1241,9 @@ pub fn run() {
             backup_game_instance,
             list_instance_backups,
             restore_game_instance_backup,
-            read_instance_log
+            read_instance_log,
+            start_social_listener,
+            send_social_packet
         ])
         .run(tauri::generate_context!())
         .expect("error while running NOVA CLIENT");
