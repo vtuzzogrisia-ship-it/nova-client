@@ -376,15 +376,13 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
     }
-    if loader == "fabric" {
+    if loader == "fabric" && version == "1.21.4" {
         let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0")
             .build().map_err(|e| e.to_string())?;
         let mut visited = std::collections::HashSet::new();
         let mut installed = Vec::new();
         install_modrinth_recursive(&client, "P7dR8mSH", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
             .map_err(|e| format!("Installazione Fabric API necessaria per NOVA HUD non riuscita: {e}"))?;
-        install_modrinth_recursive(&client, "YL57xq9U", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
-            .map_err(|e| format!("Installazione Iris/Sodium per la gestione shader non riuscita: {e}"))?;
     }
     if loader == "fabric" && version == "1.21.4" {
         use base64::Engine;
@@ -408,6 +406,29 @@ fn create_game_instance(name: String, version: String, loader: String) -> Result
     fs::write(metadata_path, serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?)
         .map_err(|e| e.to_string())?;
     Ok(path.to_string_lossy().to_string())
+}
+
+
+#[tauri::command]
+fn install_instance_shader_support(instance_path: String) -> Result<Vec<String>, String> {
+    let root = PathBuf::from(instance_path);
+    let metadata_path = root.join("nova-instance.json");
+    if !metadata_path.is_file() { return Err("Istanza NOVA non riconosciuta".into()); }
+    let metadata: serde_json::Value = serde_json::from_slice(&fs::read(metadata_path).map_err(|e| e.to_string())?)
+        .map_err(|e| format!("Metadati istanza non validi: {e}"))?;
+    if metadata["loader"].as_str() != Some("fabric") {
+        return Err("Il supporto shader automatico Iris è attualmente disponibile per istanze Fabric".into());
+    }
+    let version = metadata["version"].as_str().ok_or("Versione istanza mancante")?;
+    let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0 (shader support)")
+        .build().map_err(|e| e.to_string())?;
+    let mut visited = std::collections::HashSet::new();
+    let mut installed = Vec::new();
+    install_modrinth_recursive(&client, "YL57xq9U", version, "fabric", &root.join("mods"), &mut visited, &mut installed)
+        .map_err(|e| format!("Installazione Iris non riuscita: {e}"))?;
+    install_modrinth_recursive(&client, "AANobbMI", version, "fabric", &root.join("mods"), &mut visited, &mut installed)
+        .map_err(|e| format!("Installazione Sodium non riuscita: {e}"))?;
+    Ok(installed)
 }
 
 #[tauri::command]
@@ -838,6 +859,7 @@ pub fn run() {
             install_vanilla_version,
             create_game_instance,
             list_instance_packs,
+            install_instance_shader_support,
             import_instance_pack,
             import_instance_pack_data,
             activate_instance_pack,
