@@ -967,6 +967,37 @@ fn find_java_binary(root: &std::path::Path, depth: usize) -> Option<PathBuf> {
     None
 }
 
+/// Download link and lowercase SHA-256 of the latest Temurin JRE for a Java major.
+fn temurin_java_package(client: &reqwest::blocking::Client, major: u32, os: &str, arch: &str) -> Result<(String, String), String> {
+    let assets: serde_json::Value = client.get(format!("https://api.adoptium.net/v3/assets/latest/{major}/hotspot"))
+        .query(&[("architecture", arch), ("image_type", "jre"), ("os", os), ("vendor", "eclipse")])
+        .send().map_err(|e| format!("Catalogo Java non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| format!("Catalogo Java non valido: {e}"))?;
+    let asset = assets.as_array().and_then(|items| items.first()).ok_or("Nessun runtime Temurin compatibile trovato")?;
+    let url = asset["binary"]["package"]["link"].as_str().ok_or("Link runtime Java mancante")?.to_string();
+    let expected = asset["binary"]["package"]["checksum"].as_str().ok_or("Checksum Java mancante")?.to_lowercase();
+    Ok((url, expected))
+}
+
+/// Same as `temurin_java_package` for Azul Zulu (JDK), used when Temurin has no build.
+fn zulu_java_package(client: &reqwest::blocking::Client, major: u32, os: &str, arch: &str) -> Result<(String, String), String> {
+    let zulu_os = if os == "mac" { "macos" } else { os };
+    let archive_type = if cfg!(target_os = "windows") { "zip" } else { "tar.gz" };
+    let packages: serde_json::Value = client.get("https://api.azul.com/metadata/v1/zulu/packages/")
+        .query(&[
+            ("java_version", major.to_string().as_str()), ("os", zulu_os), ("arch", arch),
+            ("archive_type", archive_type), ("java_package_type", "jdk"), ("javafx_bundled", "false"),
+            ("release_status", "ga"), ("latest", "true"), ("include_fields", "sha256_hash,size"),
+            ("page", "1"), ("page_size", "10"),
+        ])
+        .send().map_err(|e| format!("Catalogo Zulu non raggiungibile: {e}"))?
+        .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| format!("Catalogo Zulu non valido: {e}"))?;
+    let package = packages.as_array().and_then(|items| items.first()).ok_or("Nessun runtime Zulu compatibile trovato")?;
+    let url = package["download_url"].as_str().ok_or("Link runtime Zulu mancante")?.to_string();
+    let expected = package["sha256_hash"].as_str().ok_or("Checksum Zulu mancante")?.to_lowercase();
+    Ok((url, expected))
+}
+
 fn install_java_runtime_blocking(major: u32) -> Result<String, String> {
     use std::io::Cursor;
     if ![8, 16, 17, 21, 25].contains(&major) { return Err("Sono disponibili i runtime Java 8, 16, 17, 21 e 25".into()); }
@@ -975,13 +1006,12 @@ fn install_java_runtime_blocking(major: u32) -> Result<String, String> {
     let destination = minecraft_dir()?.join("nova-runtimes").join(format!("temurin-{major}-{os}-{arch}"));
     if let Some(existing) = find_java_binary(&destination, 0) { return Ok(existing.to_string_lossy().to_string()); }
     let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0").build().map_err(|e| e.to_string())?;
-    let assets: serde_json::Value = client.get(format!("https://api.adoptium.net/v3/assets/latest/{major}/hotspot"))
-        .query(&[("architecture", arch), ("image_type", "jre"), ("os", os), ("vendor", "eclipse")])
-        .send().map_err(|e| format!("Catalogo Java non raggiungibile: {e}"))?
-        .error_for_status().map_err(|e| e.to_string())?.json().map_err(|e| format!("Catalogo Java non valido: {e}"))?;
-    let asset = assets.as_array().and_then(|items| items.first()).ok_or("Nessun runtime Temurin compatibile trovato")?;
-    let url = asset["binary"]["package"]["link"].as_str().ok_or("Link runtime Java mancante")?;
-    let expected = asset["binary"]["package"]["checksum"].as_str().ok_or("Checksum Java mancante")?.to_lowercase();
+    let (url, expected) = match temurin_java_package(&client, major, os, arch) {
+        Ok(found) => found,
+        // Temurin does not publish every major (for example Java 16); Azul Zulu is the fallback.
+        Err(temurin_error) => zulu_java_package(&client, major, os, arch)
+            .map_err(|zulu_error| format!("Nessun runtime Java {major} disponibile (Temurin: {temurin_error}; Zulu: {zulu_error})"))?,
+    };
     let bytes = client.get(url).send().map_err(|e| format!("Download Java non riuscito: {e}"))?
         .error_for_status().map_err(|e| format!("Runtime Java non disponibile: {e}"))?
         .bytes().map_err(|e| e.to_string())?;
