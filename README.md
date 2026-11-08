@@ -12,6 +12,8 @@ The desktop launcher now uses `mc-launcher-core` for complete vanilla/Fabric/Qui
 
 The bundled NOVA in-game HUD is a Fabric client mod targeting **Minecraft 1.21.4**. It renders FPS, CPS, keystrokes and coordinates in the actual game window, with an interactive Right Shift settings screen and F6-F9 display toggles. The desktop build compiles and embeds this JAR automatically. The HUD is not currently bundled for other Minecraft versions or Quilt/Forge/NeoForge. Modrinth `.mrpack` imports require an existing instance with the matching Minecraft version and loader.
 
+Every official Minecraft release from the Mojang manifest can be selected in the launcher. The required Java runtime is taken from the version metadata when available and otherwise derived from the version id (releases, pre-releases, weekly snapshots and pre-1.0 versions); a compatible installed runtime is reused before downloading one (`src-tauri/src/versions.rs`, unit-tested).
+
 Offline launch uses a local player name and does not authenticate to premium online-mode servers. Microsoft sign-in is intentionally excluded. Java 8, 16, 17, 21 and 25 can be installed into NOVA runtime storage and selected for launch. A compatible runtime is required for each Minecraft version.
 
 ## Development

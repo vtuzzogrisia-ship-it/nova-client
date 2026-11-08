@@ -1,5 +1,7 @@
 use std::{env, fs, path::PathBuf, sync::{Mutex, OnceLock}};
 
+mod versions;
+
 static SOCIAL_LISTENER_PORT: OnceLock<Mutex<Option<u16>>> = OnceLock::new();
 
 static INSTALL_JAVA_LOCK: Mutex<()> = Mutex::new(());
@@ -519,6 +521,19 @@ fn install_vanilla_version_blocking(version_id: String) -> Result<String, String
     Ok(format!("Minecraft {version_id}: client jar e metadati installati e verificati. Librerie e asset saranno completati dal resolver prima dell'avvio."))
 }
 
+/// NOVA HUD jar for a Minecraft version and loader, when one is bundled.
+/// Add a new arm (and its embedded `resources/*.b64`) to ship the HUD for another version.
+/// Versions without a bundled HUD still get a normal, fully working instance.
+fn bundled_hud_jar(version: &str, loader: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    let embedded = match (loader, version) {
+        ("fabric", "1.21.4") => include_str!("../resources/nova-hud.jar.b64"),
+        _ => return None,
+    };
+    let bytes = base64::engine::general_purpose::STANDARD.decode(embedded.trim()).ok()?;
+    bytes.starts_with(b"PK\x03\x04").then_some(bytes)
+}
+
 fn create_game_instance_blocking(name: String, version: String, loader: String) -> Result<String, String> {
     let clean = name.trim();
     if clean.is_empty() || clean.len() > 48 || !clean.chars().all(|c| c.is_ascii_alphanumeric() || c == ' ' || c == '-' || c == '_') {
@@ -535,23 +550,15 @@ fn create_game_instance_blocking(name: String, version: String, loader: String) 
     for folder in ["mods", "resourcepacks", "shaderpacks", "config", "saves"] {
         fs::create_dir_all(path.join(folder)).map_err(|e| e.to_string())?;
     }
-    if loader == "fabric" && version == "1.21.4" {
+    if let Some(hud_jar) = bundled_hud_jar(&version, &loader) {
         let client = reqwest::blocking::Client::builder().user_agent("NOVA-CLIENT/0.1.0")
             .build().map_err(|e| e.to_string())?;
         let mut visited = std::collections::HashSet::new();
         let mut installed = Vec::new();
         install_modrinth_recursive(&client, "P7dR8mSH", &version, "fabric", &path.join("mods"), &mut visited, &mut installed)
             .map_err(|e| format!("Installazione API necessaria per NOVA HUD non riuscita: {e}"))?;
-    }
-    if loader == "fabric" && version == "1.21.4" {
-        use base64::Engine;
-        let embedded = include_str!("../resources/nova-hud.jar.b64").trim();
-        if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(embedded) {
-            if bytes.starts_with(b"PK\x03\x04") {
-                fs::write(path.join("mods").join("nova-hud.jar"), bytes)
-                    .map_err(|e| format!("Impossibile installare NOVA HUD nell'istanza: {e}"))?;
-            }
-        }
+        fs::write(path.join("mods").join("nova-hud.jar"), hud_jar)
+            .map_err(|e| format!("Impossibile installare NOVA HUD nell'istanza: {e}"))?;
     }
     let metadata_path = path.join("nova-instance.json");
     let mut metadata: serde_json::Value = if metadata_path.is_file() {
@@ -749,17 +756,11 @@ fn install_game_profile_blocking(game_version: String, loader: String, loader_ve
     let launcher = Launcher::new(minecraft_dir().map_err(|e| e.to_string())?);
     let _guard = INSTALL_JAVA_LOCK.lock().map_err(|_| "Blocco installazione Java non disponibile")?;
     let original_path = env::var_os("PATH");
-    let version_parts = game_version.split('.').filter_map(|part| part.parse::<u32>().ok()).collect::<Vec<_>>();
-    let required_java = if version_parts.first().copied().unwrap_or(1) >= 26 { 25 }
-        else if version_parts.get(1) == Some(&17) { 16 }
-        else if version_parts.get(1).copied().unwrap_or(0) >= 21
-            || (version_parts.get(1) == Some(&20) && version_parts.get(2).copied().unwrap_or(0) >= 5) { 21 }
-        else if version_parts.get(1).copied().unwrap_or(0) >= 18 { 17 }
-        else { 8 };
+    let required_java = versions::required_java_major(&game_version, None);
     let detected_runtimes = detect_java_runtimes();
     let selected_java = if let Some(executable) = java_executable {
         if let Some(runtime) = detected_runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(executable.as_str())) {
-            if runtime.major != Some(required_java) {
+            if !runtime.major.is_some_and(|major| versions::java_satisfies(major, required_java)) {
                 return Err(format!("Minecraft {game_version} richiede Java {required_java}; il runtime selezionato è {}.", runtime.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
             }
         } else {
@@ -767,9 +768,7 @@ fn install_game_profile_blocking(game_version: String, loader: String, loader_ve
         }
         Some(executable)
     } else {
-        detected_runtimes.into_iter()
-            .find(|runtime| runtime.available && runtime.major == Some(required_java))
-            .and_then(|runtime| runtime.executable)
+        pick_java_runtime(detected_runtimes, required_java).and_then(|runtime| runtime.executable)
     };
     if ["forge", "neoforge"].contains(&loader.as_str()) && selected_java.is_none() {
         return Err(format!("Per installare {loader} per Minecraft {game_version} serve Java {required_java}. Installa quel runtime e riprova."));
@@ -806,15 +805,16 @@ fn install_game_profile_blocking(game_version: String, loader: String, loader_ve
 }
 
 fn java_major_for_profile(version_id: &str, declared_major: Option<u32>) -> u32 {
-    if let Some(major) = declared_major { return major; }
-    let parts: Vec<u32> = version_id.split('.').filter_map(|part| part.parse().ok()).collect();
-    let minor = parts.get(1).copied().unwrap_or(0);
-    let patch = parts.get(2).copied().unwrap_or(0);
-    if parts.first().copied().unwrap_or(1) >= 26 { 25 }
-    else if minor <= 16 { 8 }
-    else if minor == 17 { 16 }
-    else if minor >= 21 || (minor == 20 && patch >= 5) { 21 }
-    else { 17 }
+    versions::required_java_major(version_id, declared_major)
+}
+
+/// Prefers a runtime with exactly the required major, then any compatible one.
+fn pick_java_runtime(runtimes: Vec<JavaRuntimeInfo>, required: u32) -> Option<JavaRuntimeInfo> {
+    let mut compatible = runtimes.into_iter()
+        .filter(|runtime| runtime.available && runtime.major.is_some_and(|major| versions::java_satisfies(major, required)))
+        .collect::<Vec<_>>();
+    let exact = compatible.iter().position(|runtime| runtime.major == Some(required));
+    exact.map(|index| compatible.swap_remove(index)).or_else(|| compatible.into_iter().next())
 }
 
 fn read_launch_log_tail(path: &std::path::Path) -> String {
@@ -852,12 +852,11 @@ fn launch_offline_profile_blocking(version_id: String, instance_path: String, us
     let java_path = if let Some(explicit) = java_executable {
         let selected = runtimes.iter().find(|runtime| runtime.executable.as_deref() == Some(explicit.as_str()))
             .ok_or("Il Java selezionato non è più disponibile. Rileva di nuovo Java e selezionalo di nuovo.")?;
-        if selected.major != Some(required_java) {
+        if !selected.major.is_some_and(|major| versions::java_satisfies(major, required_java)) {
             return Err(format!("Minecraft {version_id} richiede Java {required_java}; hai selezionato Java {}. Seleziona o installa Java {required_java}.", selected.major.map(|v| v.to_string()).unwrap_or_else(|| "sconosciuto".into())));
         }
         PathBuf::from(explicit)
-    } else if let Some(existing) = runtimes.into_iter()
-        .find(|runtime| runtime.available && runtime.major == Some(required_java))
+    } else if let Some(existing) = pick_java_runtime(runtimes, required_java)
         .and_then(|runtime| runtime.executable.map(PathBuf::from)) {
         existing
     } else {
